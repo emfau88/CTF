@@ -7,7 +7,7 @@ export const T = {
   jumpCooldown: 540, jumpHeight: 62, jumpClearHeightRatio: 0.34,
   jumpDistanceInfluence: 0.93, lowSpeedJumpBoost: 100,
   fallRespawnMs: 420, safePointInterval: 120,
-  projectileSpeed: 430, fireRate: 900, attackRange: 225, projectileDamage: 18, projectileRadius: 5,
+  projectileSpeed: 360, fireRate: 900, botFireRate: 1150, attackRange: 245, projectileDamage: 18, projectileRadius: 5,
   playerMaxHp: 100, botMaxHp: 70, botSpeed: 72, respawnDelay: 900,
   trailIntervalMs: 18, trailLifeMs: 280, trailMax: 28,
 };

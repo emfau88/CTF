@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { T, TEAM } from "../config";
-import { LEVEL } from "../level";
+import { LEVEL_BY_ID, LEVELS, type LevelData, type LevelId } from "../level";
 import type { InputVector, Rect } from "../math";
 import { Player } from "../player";
 import { AutoAttack, Bot, CollisionSystem, FlagSystem, Projectile } from "../systems";
@@ -9,11 +9,14 @@ type Trail = { x: number; y: number; life: number; max: number; air: boolean; sp
 
 export class ArenaScene extends Phaser.Scene {
   player!: Player;
+  level!: LevelData;
+  levelId: LevelId = "training-crossing";
   bots: Bot[] = [];
   projectiles: Projectile[] = [];
-  collision = new CollisionSystem();
-  flags = new FlagSystem();
+  collision!: CollisionSystem;
+  flags!: FlagSystem;
   auto!: AutoAttack;
+  botAutos = new Map<Bot, AutoAttack>();
   cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   wasd!: Record<string, Phaser.Input.Keyboard.Key>;
   jumpKey!: Phaser.Input.Keyboard.Key;
@@ -30,11 +33,27 @@ export class ArenaScene extends Phaser.Scene {
   trail: Trail[] = [];
   trailTimer = 0;
   lastState = "alive";
+  debugVisible = window.innerWidth > 620;
 
-  create() {
-    this.player = new Player(LEVEL.redSpawn.x, LEVEL.redSpawn.y, "red");
-    this.bots = [new Bot(1270, 300, "blue"), new Bot(1270, 520, "blue")];
+  preload() {
+    this.load.spritesheet("arenaTiles", "/assets/arena-tileset.png", {
+      frameWidth: 313,
+      frameHeight: 313,
+    });
+  }
+
+  create(data?: { mapId?: LevelId }) {
+    this.levelId = data?.mapId && LEVEL_BY_ID[data.mapId] ? data.mapId : "training-crossing";
+    this.level = LEVEL_BY_ID[this.levelId];
+    this.player = new Player(this.level.redSpawn.x, this.level.redSpawn.y, "red");
+    this.bots = [
+      new Bot(this.level.blueSpawn.x - 80, this.level.blueSpawn.y - 110, "blue", "attacker", this.level),
+      new Bot(this.level.blueSpawn.x - 80, this.level.blueSpawn.y + 110, "blue", "defender", this.level),
+    ];
+    this.collision = new CollisionSystem(this.level);
+    this.flags = new FlagSystem(this.level);
     this.auto = new AutoAttack(this.player, this.projectiles);
+    this.botAutos = new Map(this.bots.map((bot) => [bot, new AutoAttack(bot, this.projectiles, T.botFireRate)]));
 
     this.drawArena();
     this.trailGfx = this.add.graphics().setDepth(15);
@@ -56,6 +75,7 @@ export class ArenaScene extends Phaser.Scene {
     this.input.on("pointerup", (p: Phaser.Input.Pointer) => this.pointerUp(p));
     this.scale.on("resize", () => this.layoutTouch());
     this.layoutTouch();
+    this.setupHudButtons();
 
     this.cameras.main.setBounds(0, 0, T.worldWidth, T.worldHeight);
     this.cameras.main.startFollow(this.playerBody, true, .12, .12);
@@ -78,16 +98,18 @@ export class ArenaScene extends Phaser.Scene {
       this.collision.update(this.player, ms);
     } else {
       this.player.stateTimer -= ms;
-      if (this.player.stateTimer <= 0) this.player.respawn(this.player.state === "falling" ? this.player.lastSafe : LEVEL.redSpawn);
+      if (this.player.stateTimer <= 0) this.player.respawn(this.player.state === "falling" ? this.player.lastSafe : this.level.redSpawn);
     }
     if (this.lastState === "alive" && this.player.state !== "alive") this.flags.failed(this.player);
     this.lastState = this.player.state;
 
-    const blockers: Rect[] = [...LEVEL.walls, ...LEVEL.gaps];
-    for (const b of this.bots) b.update(dt, ms, blockers);
+    const blockers: Rect[] = [...this.level.walls, ...this.level.gaps];
+    for (const b of this.bots) b.update(dt, ms, blockers, this.flags, this.player);
     this.auto.update(ms, this.bots);
+    for (const b of this.bots) this.botAutos.get(b)?.update(ms, [this.player]);
     for (const p of this.projectiles) p.update(dt, ms, [...this.bots, this.player]);
     this.projectiles = this.projectiles.filter(p => !p.dead);
+    for (const b of this.bots) if (!b.alive) this.flags.failed(b);
     this.flags.update(this.player);
     this.updateTrail(ms);
     this.render();
@@ -110,9 +132,15 @@ export class ArenaScene extends Phaser.Scene {
     this.gfx.clear();
     this.renderFlags();
     this.renderPlayer();
-    for (const b of this.bots) this.botViews.get(b)?.setPosition(b.x, b.y).setVisible(b.alive);
+    for (const b of this.bots) {
+      this.botViews.get(b)
+        ?.setPosition(b.x, b.y)
+        .setFillStyle(b.carriedFlag ? TEAM.red.color : TEAM.blue.color)
+        .setVisible(b.alive);
+    }
     for (const p of this.projectiles) {
-      if (!this.projectileViews.has(p)) this.projectileViews.set(p, this.add.circle(p.x, p.y, T.projectileRadius, 0x21302e).setDepth(50));
+      const color = p.owner.team === "red" ? TEAM.red.dark : TEAM.blue.dark;
+      if (!this.projectileViews.has(p)) this.projectileViews.set(p, this.add.circle(p.x, p.y, T.projectileRadius, color).setDepth(50));
       this.projectileViews.get(p)?.setPosition(p.x, p.y);
     }
     for (const [p, v] of this.projectileViews) if (p.dead) { v.destroy(); this.projectileViews.delete(p); }
@@ -159,18 +187,35 @@ export class ArenaScene extends Phaser.Scene {
 
   drawArena() {
     const g = this.add.graphics().setDepth(0);
-    g.fillStyle(0xedf5ee).fillRect(0, 0, T.worldWidth, T.worldHeight);
-    g.lineStyle(1, 0xcadbd4, .38);
+    this.drawFloorTiles();
+    this.drawObjectSprite(this.level.redBase, 2, .92);
+    this.drawObjectSprite(this.level.blueBase, 3, .92);
+    for (const gap of this.level.gaps) this.drawObjectSprite(gap, 8, 1);
+    for (const wall of this.level.walls) this.drawObjectSprite(wall, wall.w > wall.h ? 4 : 5, 1);
+
+    g.lineStyle(1, 0xcadbd4, .28);
     for (let x = 0; x <= T.worldWidth; x += 50) g.beginPath().moveTo(x, 0).lineTo(x, T.worldHeight).strokePath();
     for (let y = 0; y <= T.worldHeight; y += 50) g.beginPath().moveTo(0, y).lineTo(T.worldWidth, y).strokePath();
-    this.zone(g, LEVEL.redBase, TEAM.red.base, TEAM.red.dark); this.zone(g, LEVEL.blueBase, TEAM.blue.base, TEAM.blue.dark);
+    this.zone(g, this.level.redBase, TEAM.red.base, TEAM.red.dark); this.zone(g, this.level.blueBase, TEAM.blue.base, TEAM.blue.dark);
     g.lineStyle(3, 0x9dafaa, .45).beginPath().moveTo(T.worldWidth / 2, 40).lineTo(T.worldWidth / 2, T.worldHeight - 40).strokePath();
-    for (const gap of LEVEL.gaps) this.gap(g, gap);
-    for (const wall of LEVEL.walls) this.wall(g, wall);
+    for (const gap of this.level.gaps) this.gap(g, gap);
+    for (const wall of this.level.walls) this.wall(g, wall);
   }
-  zone(g: Phaser.GameObjects.Graphics, r: Rect, fill: number, stroke: number) { g.fillStyle(fill, .9).fillRoundedRect(r.x, r.y, r.w, r.h, 8).lineStyle(3, stroke, .45).strokeRoundedRect(r.x, r.y, r.w, r.h, 8); }
-  gap(g: Phaser.GameObjects.Graphics, r: Rect) { g.fillStyle(0x263534, .94).fillRoundedRect(r.x, r.y, r.w, r.h, 8).lineStyle(3, 0x5eb5dc, .45).strokeRoundedRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6, 7); }
-  wall(g: Phaser.GameObjects.Graphics, r: Rect) { g.fillStyle(0xb9c8be).fillRoundedRect(r.x, r.y, r.w, r.h, 6).lineStyle(2, 0x7f9189, .9).strokeRoundedRect(r.x, r.y, r.w, r.h, 6); }
+  drawFloorTiles() {
+    const size = 50;
+    for (let y = 0; y < T.worldHeight; y += size) {
+      for (let x = 0; x < T.worldWidth; x += size) {
+        const frame = (Math.floor(x / size) + Math.floor(y / size) * 2) % 7 === 0 ? 1 : 0;
+        this.add.image(x + size / 2, y + size / 2, "arenaTiles", frame).setDisplaySize(size, size).setDepth(-2);
+      }
+    }
+  }
+  drawObjectSprite(r: Rect, frame: number, alpha = 1) {
+    this.add.image(r.x + r.w / 2, r.y + r.h / 2, "arenaTiles", frame).setDisplaySize(r.w, r.h).setAlpha(alpha).setDepth(-1);
+  }
+  zone(g: Phaser.GameObjects.Graphics, r: Rect, fill: number, stroke: number) { g.fillStyle(fill, .18).fillRoundedRect(r.x, r.y, r.w, r.h, 8).lineStyle(3, stroke, .62).strokeRoundedRect(r.x, r.y, r.w, r.h, 8); }
+  gap(g: Phaser.GameObjects.Graphics, r: Rect) { g.fillStyle(0x111f20, .24).fillRoundedRect(r.x, r.y, r.w, r.h, 8).lineStyle(3, 0x5eb5dc, .72).strokeRoundedRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6, 7); }
+  wall(g: Phaser.GameObjects.Graphics, r: Rect) { g.fillStyle(0xb9c8be, .16).fillRoundedRect(r.x, r.y, r.w, r.h, 6).lineStyle(2, 0x6f837b, .95).strokeRoundedRect(r.x, r.y, r.w, r.h, 6); }
 
   layoutTouch() { this.joy.ox = Math.max(96, this.scale.width * .12); this.joy.oy = this.scale.height - 96; this.jumpBtn.x = this.scale.width - Math.max(84, this.scale.width * .09); this.jumpBtn.y = this.scale.height - 94; }
   pointerDown(p: Phaser.Input.Pointer) {
@@ -198,7 +243,10 @@ export class ArenaScene extends Phaser.Scene {
     document.querySelector("#speed")!.textContent = this.player.speed().toFixed(0);
     document.querySelector("#jump")!.textContent = this.player.jump.state();
     document.querySelector("#capture")!.textContent = this.flags.capture(this.player);
-    document.querySelector("#debug")!.textContent = `speed: ${this.player.speed().toFixed(1)}
+    const debug = document.querySelector("#debug")!;
+    debug.classList.toggle("is-hidden", !this.debugVisible);
+    debug.classList.toggle("is-visible", this.debugVisible);
+    debug.textContent = `speed: ${this.player.speed().toFixed(1)}
 velocity: ${this.player.vx.toFixed(1)}, ${this.player.vy.toFixed(1)}
 state: ${this.player.state}
 jump height: ${this.player.jump.height.toFixed(1)}
@@ -207,5 +255,38 @@ friction: ${this.player.movement.currentFriction.toFixed(2)}
 carried flag: ${this.player.carriedFlag ?? "none"}
 over gap: ${this.player.overGap ? "yes" : "no"}
 last safe: ${this.player.lastSafe.x.toFixed(0)}, ${this.player.lastSafe.y.toFixed(0)}`;
+  }
+
+  setupHudButtons() {
+    const panel = document.querySelector("#settings-panel");
+    const settingsButton = document.querySelector<HTMLButtonElement>("#settings-button");
+    if (settingsButton) settingsButton.onclick = () => {
+      panel?.classList.toggle("is-hidden");
+    };
+
+    for (const button of Array.from(document.querySelectorAll<HTMLButtonElement>("[data-map]"))) {
+      const mapId = button.dataset.map as LevelId;
+      button.classList.toggle("is-active", mapId === this.levelId);
+      button.title = LEVEL_BY_ID[mapId]?.plan ?? "";
+      button.onclick = () => {
+        if (!LEVELS.some((level) => level.id === mapId)) return;
+        panel?.classList.add("is-hidden");
+        this.scene.restart({ mapId });
+      };
+    }
+
+    const debugButton = document.querySelector<HTMLButtonElement>("#debug-button");
+    if (debugButton) debugButton.onclick = () => {
+      this.debugVisible = !this.debugVisible;
+    };
+
+    const fullscreenButton = document.querySelector<HTMLButtonElement>("#fullscreen-button");
+    if (fullscreenButton) fullscreenButton.onclick = async () => {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
+    };
   }
 }
