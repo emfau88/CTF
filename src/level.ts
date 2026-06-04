@@ -1,5 +1,8 @@
 import type { Rect } from "./math";
 
+export type PickupKind = "health" | "armor" | "rocket";
+export type PickupSpawn = { kind: PickupKind; x: number; y: number };
+
 export type LevelData = {
   id: string;
   name: string;
@@ -12,6 +15,7 @@ export type LevelData = {
   blueFlag: { x: number; y: number };
   walls: Rect[];
   gaps: Rect[];
+  pickups: PickupSpawn[];
   botRoutes: {
     attacker: { x: number; y: number }[];
     defender: { x: number; y: number }[];
@@ -41,6 +45,10 @@ const trainingCrossing: LevelData = {
     { x: 555, y: 538, w: 140, h: 64 }, { x: 805, y: 538, w: 140, h: 64 },
     { x: 666, y: 350, w: 168, h: 120 },
   ] satisfies Rect[],
+  pickups: [
+    { kind: "health", x: 120, y: 320 }, { kind: "armor", x: 220, y: 320 }, { kind: "rocket", x: 150, y: 500 },
+    { kind: "health", x: 1290, y: 320 }, { kind: "armor", x: 1390, y: 320 }, { kind: "rocket", x: 1350, y: 500 },
+  ],
   botRoutes: {
     attacker: [{ x: 1160, y: 84 }, { x: 760, y: 72 }, { x: 360, y: 84 }, { x: 150, y: 410 }],
     defender: [{ x: 1180, y: 280 }, { x: 1340, y: 280 }, { x: 1340, y: 540 }, { x: 1180, y: 540 }],
@@ -70,6 +78,10 @@ const midlineRush: LevelData = {
     { x: 655, y: 250, w: 190, h: 54 },
     { x: 655, y: 516, w: 190, h: 54 },
   ],
+  pickups: [
+    { kind: "health", x: 118, y: 335 }, { kind: "armor", x: 212, y: 335 }, { kind: "rocket", x: 150, y: 485 },
+    { kind: "health", x: 1288, y: 335 }, { kind: "armor", x: 1382, y: 335 }, { kind: "rocket", x: 1350, y: 485 },
+  ],
   botRoutes: {
     attacker: [{ x: 1130, y: 735 }, { x: 760, y: 735 }, { x: 360, y: 735 }, { x: 150, y: 410 }],
     defender: [{ x: 1190, y: 310 }, { x: 1380, y: 310 }, { x: 1380, y: 520 }, { x: 1190, y: 520 }],
@@ -98,6 +110,10 @@ const flankSwitch: LevelData = {
     { x: 585, y: 235, w: 128, h: 70 }, { x: 787, y: 515, w: 128, h: 70 },
     { x: 585, y: 515, w: 128, h: 70 }, { x: 787, y: 235, w: 128, h: 70 },
     { x: 706, y: 338, w: 88, h: 144 },
+  ],
+  pickups: [
+    { kind: "health", x: 125, y: 315 }, { kind: "armor", x: 220, y: 315 }, { kind: "rocket", x: 150, y: 505 },
+    { kind: "health", x: 1280, y: 315 }, { kind: "armor", x: 1375, y: 315 }, { kind: "rocket", x: 1350, y: 505 },
   ],
   botRoutes: {
     attacker: [{ x: 1180, y: 720 }, { x: 930, y: 720 }, { x: 750, y: 720 }, { x: 520, y: 720 }, { x: 150, y: 410 }],

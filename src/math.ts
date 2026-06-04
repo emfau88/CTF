@@ -3,6 +3,16 @@ export type Rect = { x: number; y: number; w: number; h: number };
 export type InputVector = Vec2 & { length: number };
 export const len = (x: number, y: number) => Math.hypot(x, y);
 export const pointInRect = (x: number, y: number, r: Rect) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+export function segmentsIntersect(a: Vec2, b: Vec2, c: Vec2, d: Vec2) {
+  const ccw = (p1: Vec2, p2: Vec2, p3: Vec2) => (p3.y - p1.y) * (p2.x - p1.x) > (p2.y - p1.y) * (p3.x - p1.x);
+  return ccw(a, c, d) !== ccw(b, c, d) && ccw(a, b, c) !== ccw(a, b, d);
+}
+export function lineIntersectsRect(a: Vec2, b: Vec2, r: Rect) {
+  if (pointInRect(a.x, a.y, r) || pointInRect(b.x, b.y, r)) return true;
+  const tl = { x: r.x, y: r.y }, tr = { x: r.x + r.w, y: r.y };
+  const br = { x: r.x + r.w, y: r.y + r.h }, bl = { x: r.x, y: r.y + r.h };
+  return segmentsIntersect(a, b, tl, tr) || segmentsIntersect(a, b, tr, br) || segmentsIntersect(a, b, br, bl) || segmentsIntersect(a, b, bl, tl);
+}
 export function circleRect(cx: number, cy: number, radius: number, r: Rect) {
   const nx = Math.max(r.x, Math.min(cx, r.x + r.w));
   const ny = Math.max(r.y, Math.min(cy, r.y + r.h));

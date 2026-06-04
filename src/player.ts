@@ -7,7 +7,7 @@ export type PlayerState = "alive" | "falling" | "dead";
 export class Player {
   radius = T.playerRadius;
   x: number; y: number; prevX: number; prevY: number;
-  vx = 0; vy = 0; hp = T.playerMaxHp;
+  vx = 0; vy = 0; hp = T.playerMaxHp; armor = 0; rocketAmmo = 0;
   state: PlayerState = "alive"; stateTimer = 0;
   team: TeamId; carriedFlag: TeamId | null = null;
   lastSafe: Vec2; safeTimer = 0; lastMoveDir: Vec2 = { x: 1, y: 0 }; overGap = false;
@@ -19,8 +19,16 @@ export class Player {
   }
   speed() { return len(this.vx, this.vy); }
   fall() { if (this.state !== "alive") return; this.state = "falling"; this.stateTimer = T.fallRespawnMs; this.vx *= .18; this.vy *= .18; this.jump.cancel(); }
-  damage(v: number) { if (this.state !== "alive") return; this.hp -= v; if (this.hp <= 0) { this.state = "dead"; this.stateTimer = T.respawnDelay; this.vx = 0; this.vy = 0; this.jump.cancel(); } }
-  respawn(p: Vec2) { this.x = p.x; this.y = p.y; this.prevX = p.x; this.prevY = p.y; this.vx = 0; this.vy = 0; this.hp = T.playerMaxHp; this.state = "alive"; this.stateTimer = 0; this.lastSafe = { ...p }; this.jump.reset(); }
+  heal(v: number) { this.hp = Math.min(T.playerMaxHp, this.hp + v); }
+  addArmor(v: number) { this.armor = Math.min(T.playerMaxHp, this.armor + v); }
+  damage(v: number) {
+    if (this.state !== "alive") return;
+    const armorHit = Math.min(this.armor, v);
+    this.armor -= armorHit;
+    this.hp -= v - armorHit;
+    if (this.hp <= 0) { this.state = "dead"; this.stateTimer = T.respawnDelay; this.vx = 0; this.vy = 0; this.armor = 0; this.jump.cancel(); }
+  }
+  respawn(p: Vec2) { this.x = p.x; this.y = p.y; this.prevX = p.x; this.prevY = p.y; this.vx = 0; this.vy = 0; this.hp = T.playerMaxHp; this.armor = 0; this.rocketAmmo = 0; this.state = "alive"; this.stateTimer = 0; this.lastSafe = { ...p }; this.jump.reset(); }
 }
 
 export class JumpSystem {

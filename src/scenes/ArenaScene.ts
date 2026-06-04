@@ -1,20 +1,25 @@
 import Phaser from "phaser";
 import { T, TEAM } from "../config";
 import { LEVEL_BY_ID, LEVELS, type LevelData, type LevelId } from "../level";
-import type { InputVector, Rect } from "../math";
+import { len, lineIntersectsRect, type InputVector, type Rect, type Vec2 } from "../math";
 import { Player } from "../player";
-import { AutoAttack, Bot, CollisionSystem, FlagSystem, Projectile } from "../systems";
+import { AutoAttack, Bot, CollisionSystem, FlagSystem, Pickup, PickupSystem, Projectile, type BotRole } from "../systems";
 
 type Trail = { x: number; y: number; life: number; max: number; air: boolean; speed: number };
+type RocketSmokeFx = { x: number; y: number; life: number; max: number; frame: number; scale: number; rotation: number; view?: Phaser.GameObjects.Image };
+type ExplosionFx = { x: number; y: number; life: number; max: number; view?: Phaser.GameObjects.Image };
 
 export class ArenaScene extends Phaser.Scene {
   player!: Player;
   level!: LevelData;
   levelId: LevelId = "training-crossing";
+  redCount = 1;
+  blueCount = 2;
   bots: Bot[] = [];
   projectiles: Projectile[] = [];
   collision!: CollisionSystem;
   flags!: FlagSystem;
+  pickups!: PickupSystem;
   auto!: AutoAttack;
   botAutos = new Map<Bot, AutoAttack>();
   cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -22,6 +27,7 @@ export class ArenaScene extends Phaser.Scene {
   jumpKey!: Phaser.Input.Keyboard.Key;
   joy = { active: false, id: -1, ox: 110, oy: 500, x: 0, y: 0, len: 0 };
   jumpBtn = { id: -1, x: 0, y: 0, r: 52, held: false, pressed: false };
+  rocketBtn = { id: -1, x: 0, y: 0, r: 43, held: false, aimX: 1, aimY: 0, drag: 0, dragged: false };
   gfx!: Phaser.GameObjects.Graphics;
   trailGfx!: Phaser.GameObjects.Graphics;
   uiGfx!: Phaser.GameObjects.Graphics;
@@ -30,7 +36,13 @@ export class ArenaScene extends Phaser.Scene {
   shadow!: Phaser.GameObjects.Ellipse;
   botViews = new Map<Bot, Phaser.GameObjects.Arc>();
   projectileViews = new Map<Projectile, Phaser.GameObjects.Arc>();
+  rocketViews = new Map<Projectile, Phaser.GameObjects.Image>();
+  pickupViews = new Map<Pickup, Phaser.GameObjects.Container>();
+  botAlive = new Map<Bot, boolean>();
   trail: Trail[] = [];
+  rocketSmoke: RocketSmokeFx[] = [];
+  rocketSmokeTimers = new Map<Projectile, number>();
+  explosions: ExplosionFx[] = [];
   trailTimer = 0;
   lastState = "alive";
   debugVisible = window.innerWidth > 620;
@@ -40,20 +52,36 @@ export class ArenaScene extends Phaser.Scene {
       frameWidth: 313,
       frameHeight: 313,
     });
+    this.load.spritesheet("rocketProjectile", "/assets/rocket-projectile.png?v=2", {
+      frameWidth: 128,
+      frameHeight: 128,
+    });
+    this.load.spritesheet("rocketSmoke", "/assets/rocket-smoke.png?v=1", {
+      frameWidth: 180,
+      frameHeight: 180,
+    });
+    this.load.spritesheet("rocketExplosion", "/assets/rocket-explosion.png?v=2", {
+      frameWidth: 256,
+      frameHeight: 256,
+    });
   }
 
-  create(data?: { mapId?: LevelId }) {
+  create(data?: { mapId?: LevelId; redCount?: number; blueCount?: number }) {
     this.levelId = data?.mapId && LEVEL_BY_ID[data.mapId] ? data.mapId : "training-crossing";
+    this.redCount = this.teamCount(data?.redCount, 1);
+    this.blueCount = this.teamCount(data?.blueCount, 2);
     this.level = LEVEL_BY_ID[this.levelId];
     this.player = new Player(this.level.redSpawn.x, this.level.redSpawn.y, "red");
     this.bots = [
-      new Bot(this.level.blueSpawn.x - 80, this.level.blueSpawn.y - 110, "blue", "attacker", this.level),
-      new Bot(this.level.blueSpawn.x - 80, this.level.blueSpawn.y + 110, "blue", "defender", this.level),
+      ...this.createTeamBots("red", Math.max(0, this.redCount - 1)),
+      ...this.createTeamBots("blue", this.blueCount),
     ];
     this.collision = new CollisionSystem(this.level);
     this.flags = new FlagSystem(this.level);
+    this.pickups = new PickupSystem(this.level.pickups);
     this.auto = new AutoAttack(this.player, this.projectiles);
     this.botAutos = new Map(this.bots.map((bot) => [bot, new AutoAttack(bot, this.projectiles, T.botFireRate)]));
+    this.botAlive = new Map(this.bots.map((bot) => [bot, bot.alive]));
 
     this.drawArena();
     this.trailGfx = this.add.graphics().setDepth(15);
@@ -62,7 +90,7 @@ export class ArenaScene extends Phaser.Scene {
     this.shadow = this.add.ellipse(this.player.x, this.player.y + 8, 34, 14, 0x000000, .2).setDepth(20);
     this.playerBody = this.add.circle(this.player.x, this.player.y, this.player.radius, TEAM.red.color).setDepth(35);
     this.playerRing = this.add.circle(this.player.x, this.player.y, this.player.radius + 4).setStrokeStyle(3, 0xffffff).setDepth(36);
-    for (const b of this.bots) this.botViews.set(b, this.add.circle(b.x, b.y, b.radius, TEAM.blue.color).setStrokeStyle(3, 0xffffff).setDepth(32));
+    for (const b of this.bots) this.botViews.set(b, this.add.circle(b.x, b.y, b.radius, TEAM[b.team].color).setStrokeStyle(3, 0xffffff).setDepth(32));
 
     if (!this.input.keyboard) throw new Error("keyboard unavailable");
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -100,20 +128,39 @@ export class ArenaScene extends Phaser.Scene {
       this.player.stateTimer -= ms;
       if (this.player.stateTimer <= 0) this.player.respawn(this.player.state === "falling" ? this.player.lastSafe : this.level.redSpawn);
     }
-    if (this.lastState === "alive" && this.player.state !== "alive") this.flags.failed(this.player);
+    if (this.lastState === "alive" && this.player.state !== "alive") {
+      this.flags.failed(this.player);
+      if (this.player.state === "dead") this.dropWeaponAmmo(this.player);
+    }
     this.lastState = this.player.state;
 
     const blockers: Rect[] = [...this.level.walls, ...this.level.gaps];
-    for (const b of this.bots) b.update(dt, ms, blockers, this.flags, this.player);
+    const actors = [this.player, ...this.bots];
+    for (const b of this.bots) b.update(dt, ms, blockers, this.flags, actors, this.level.walls, this.pickups.pickups);
     for (const p of this.projectiles) p.update(dt, ms, [...this.bots, this.player], this.level.walls);
+    this.emitRocketSmoke(ms);
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
-      if (this.projectiles[i].dead) this.projectiles.splice(i, 1);
+      if (this.projectiles[i].dead) {
+        if (this.projectiles[i].exploded) this.explosions.push({ x: this.projectiles[i].x, y: this.projectiles[i].y, life: 420, max: 420 });
+        this.rocketSmokeTimers.delete(this.projectiles[i]);
+        this.projectiles.splice(i, 1);
+      }
     }
-    this.auto.update(ms, this.bots);
-    for (const b of this.bots) this.botAutos.get(b)?.update(ms, [this.player]);
-    for (const b of this.bots) if (!b.alive) this.flags.failed(b);
+    this.auto.update(ms, this.bots, this.level.walls);
+    for (const b of this.bots) this.botAutos.get(b)?.update(ms, actors, this.level.walls);
+    for (const b of this.bots) {
+      const wasAlive = this.botAlive.get(b) ?? b.alive;
+      if (wasAlive && !b.alive) {
+        this.flags.failed(b);
+        this.dropWeaponAmmo(b);
+      }
+      this.botAlive.set(b, b.alive);
+    }
     this.flags.update(this.player);
+    this.pickups.update(ms, actors);
     this.updateTrail(ms);
+    this.updateRocketSmoke(ms);
+    this.updateExplosions(ms);
     this.render();
   }
 
@@ -129,10 +176,38 @@ export class ArenaScene extends Phaser.Scene {
     return { x, y, length: Math.min(1, Math.max(l, d > 0 ? 1 : 0)) };
   }
 
+  teamCount(value: number | undefined, fallback: number) {
+    return Phaser.Math.Clamp(Math.round(value ?? fallback), 1, 4);
+  }
+
+  createTeamBots(team: "red" | "blue", count: number) {
+    const spawn = team === "red" ? this.level.redSpawn : this.level.blueSpawn;
+    const side = team === "red" ? 1 : -1;
+    const offsets = [
+      { x: 80 * side, y: -110 },
+      { x: 80 * side, y: 110 },
+      { x: 145 * side, y: 0 },
+      { x: 55 * side, y: 0 },
+    ];
+    const roles: BotRole[] = ["attacker", "defender", "support", "attacker"];
+    return Array.from({ length: count }, (_, index) => {
+      const offset = offsets[index] ?? offsets[0];
+      const role = roles[index] ?? "attacker";
+      return new Bot(spawn.x + offset.x, spawn.y + offset.y, team, role, this.level);
+    });
+  }
+
+  restartWithSettings(mapId: LevelId = this.levelId) {
+    this.scene.restart({ mapId, redCount: this.redCount, blueCount: this.blueCount });
+  }
+
   render() {
     this.renderTrail();
     this.gfx.clear();
+    this.renderExplosions();
     this.renderFlags();
+    this.renderPickups();
+    this.renderRocketSmoke();
     this.renderPlayer();
     for (const b of this.bots) {
       this.botViews.get(b)
@@ -142,13 +217,24 @@ export class ArenaScene extends Phaser.Scene {
       if (b.alive) this.drawHpBar(b.x - 18, b.y - 31, 36, 5, b.hp / T.botMaxHp, TEAM[b.team].dark);
     }
     for (const p of this.projectiles) {
-      const color = p.owner.team === "red" ? TEAM.red.dark : TEAM.blue.dark;
-      if (!this.projectileViews.has(p)) {
-        this.projectileViews.set(p, this.add.circle(p.x, p.y, T.projectileRadius, color, .95).setStrokeStyle(2, 0xffffff, .85).setDepth(50));
+      if (p.kind === "rocket") {
+        if (!this.rocketViews.has(p)) {
+          this.rocketViews.set(p, this.add.image(p.x, p.y, "rocketProjectile", 2).setDepth(52).setScale(.46));
+        }
+        this.rocketViews.get(p)
+          ?.setPosition(p.x, p.y)
+          .setRotation(Math.atan2(p.vy, p.vx));
+      } else {
+        const color = p.owner.team === "red" ? TEAM.red.dark : TEAM.blue.dark;
+        if (!this.projectileViews.has(p)) {
+          this.projectileViews.set(p, this.add.circle(p.x, p.y, p.radius, color, .95).setStrokeStyle(2, 0xffffff, .85).setDepth(50));
+        }
+        this.projectileViews.get(p)?.setPosition(p.x, p.y).setRadius(p.radius).setFillStyle(color, .95);
       }
-      this.projectileViews.get(p)?.setPosition(p.x, p.y).setFillStyle(color, .95);
     }
     for (const [p, v] of this.projectileViews) if (p.dead) { v.destroy(); this.projectileViews.delete(p); }
+    for (const [p, v] of this.rocketViews) if (p.dead) { v.destroy(); this.rocketViews.delete(p); }
+    this.renderRocketAim();
     this.drawTouch();
     this.updateHud();
   }
@@ -165,6 +251,62 @@ export class ArenaScene extends Phaser.Scene {
     ).color;
     this.playerBody.setPosition(this.player.x, this.player.y - h).setRadius(this.player.radius * scale).setFillStyle(this.player.state === "falling" ? 0x333333 : color, this.player.state === "alive" ? 1 : .35).setVisible(this.player.state !== "dead");
     this.playerRing.setPosition(this.player.x, this.player.y - h).setRadius(this.player.radius * scale + 4).setStrokeStyle(3, this.player.jump.active ? 0xffd86b : 0xffffff, .95).setVisible(this.player.state !== "dead");
+    if (this.player.state === "alive") {
+      this.drawHpBar(this.player.x - 22, this.player.y - h - 38, 44, 6, this.player.hp / T.playerMaxHp, TEAM.red.dark);
+      if (this.player.armor > 0) {
+        this.gfx.lineStyle(4, 0x29c46a, .95).beginPath().arc(this.player.x, this.player.y - h, this.player.radius * scale + 9, -2.55, -.6).strokePath();
+      }
+    }
+  }
+
+  renderPickups() {
+    for (const pickup of this.pickups.pickups) {
+      if (!this.pickupViews.has(pickup)) this.pickupViews.set(pickup, this.createPickupView(pickup));
+      this.pickupViews.get(pickup)?.setVisible(pickup.active);
+    }
+    for (const [pickup, view] of this.pickupViews) {
+      if (!this.pickups.pickups.includes(pickup)) {
+        view.destroy(true);
+        this.pickupViews.delete(pickup);
+      }
+    }
+  }
+
+  dropWeaponAmmo(actor: Player | Bot) {
+    if (actor.rocketAmmo <= 0) return;
+    this.pickups.dropRocketAmmo(actor.x, actor.y, actor.rocketAmmo);
+    actor.rocketAmmo = 0;
+  }
+
+  createPickupView(pickup: Pickup) {
+    const container = this.add.container(pickup.x, pickup.y).setDepth(18);
+    const colors = {
+      health: { fill: 0x43d675, stroke: 0x166237 },
+      armor: { fill: 0x35d890, stroke: 0x0f6845 },
+      rocket: { fill: 0xf59f2f, stroke: 0x8f3d0f },
+    };
+    const color = colors[pickup.kind];
+    const base = this.add.circle(0, 0, pickup.temporary ? 14 : 16, color.fill, pickup.temporary ? .82 : .92).setStrokeStyle(3, pickup.temporary ? 0xffffff : color.stroke, pickup.temporary ? .86 : .95);
+    container.add(base);
+    if (pickup.kind === "health") {
+      container.add(this.add.rectangle(0, 0, 18, 6, 0xffffff, .94));
+      container.add(this.add.rectangle(0, 0, 6, 18, 0xffffff, .94));
+    } else if (pickup.kind === "armor") {
+      container.add(this.add.triangle(0, 1, -10, -8, 10, -8, 0, 11, 0xffffff, .92));
+    } else {
+      container.add(this.add.rectangle(0, 0, 20, 7, 0xffffff, .92).setRotation(-.45));
+      container.add(this.add.circle(9, -4, 4, 0x34220a, .95));
+      if (pickup.temporary) {
+        container.add(this.add.text(11, 8, String(pickup.amount), {
+          fontFamily: "Arial",
+          fontSize: "11px",
+          color: "#ffffff",
+          stroke: "#17211f",
+          strokeThickness: 3,
+        }).setOrigin(.5));
+      }
+    }
+    return container;
   }
 
   renderFlags() {
@@ -202,6 +344,84 @@ export class ArenaScene extends Phaser.Scene {
     }
   }
 
+  emitRocketSmoke(ms: number) {
+    for (const p of this.projectiles) {
+      if (p.kind !== "rocket" || p.dead) continue;
+      const next = (this.rocketSmokeTimers.get(p) ?? 0) - ms;
+      if (next > 0) {
+        this.rocketSmokeTimers.set(p, next);
+        continue;
+      }
+      const speed = len(p.vx, p.vy) || 1;
+      const nx = p.vx / speed, ny = p.vy / speed;
+      this.rocketSmoke.push({
+        x: p.x - nx * 20 + Phaser.Math.Between(-4, 4),
+        y: p.y - ny * 20 + Phaser.Math.Between(-4, 4),
+        life: 320,
+        max: 320,
+        frame: Phaser.Math.Between(0, 5),
+        scale: Phaser.Math.FloatBetween(.16, .24),
+        rotation: Phaser.Math.FloatBetween(-.45, .45),
+      });
+      this.rocketSmokeTimers.set(p, 42);
+    }
+  }
+
+  updateRocketSmoke(ms: number) {
+    for (const fx of this.rocketSmoke) fx.life -= ms;
+    for (const fx of this.rocketSmoke.filter((fx) => fx.life <= 0)) fx.view?.destroy();
+    this.rocketSmoke = this.rocketSmoke.filter((fx) => fx.life > 0);
+  }
+
+  renderRocketSmoke() {
+    for (const fx of this.rocketSmoke) {
+      const t = 1 - fx.life / fx.max;
+      const alpha = Math.max(0, fx.life / fx.max) * .72;
+      if (!fx.view) {
+        fx.view = this.add.image(fx.x, fx.y, "rocketSmoke", fx.frame).setDepth(49).setBlendMode(Phaser.BlendModes.NORMAL);
+      }
+      fx.view
+        .setPosition(fx.x, fx.y)
+        .setRotation(fx.rotation)
+        .setScale(fx.scale * (1 + t * .75))
+        .setAlpha(alpha);
+    }
+  }
+
+  updateExplosions(ms: number) {
+    this.explosions.forEach((fx) => fx.life -= ms);
+    for (const fx of this.explosions.filter((fx) => fx.life <= 0)) fx.view?.destroy();
+    this.explosions = this.explosions.filter((fx) => fx.life > 0);
+  }
+
+  renderExplosions() {
+    for (const fx of this.explosions) {
+      const t = 1 - fx.life / fx.max;
+      const alpha = fx.life / fx.max;
+      const frame = Phaser.Math.Clamp(Math.floor(t * 6), 0, 5);
+      if (!fx.view) {
+        fx.view = this.add.image(fx.x, fx.y, "rocketExplosion", 0).setDepth(70).setScale(.38);
+      }
+      fx.view
+        .setFrame(frame)
+        .setPosition(fx.x, fx.y)
+        .setScale(.30 + t * .16)
+        .setAlpha(Math.min(1, alpha * 1.25));
+      this.gfx.fillStyle(0xf59f2f, .08 * alpha).fillCircle(fx.x, fx.y, T.rocketSplashRadius * Math.min(1, t * 1.25));
+      this.gfx.lineStyle(2, 0xffd36c, .3 * alpha).strokeCircle(fx.x, fx.y, T.rocketSplashRadius * Math.min(1, t * 1.1));
+    }
+  }
+
+  renderRocketAim() {
+    if (!this.rocketBtn.held || !this.rocketBtn.dragged || this.player.rocketAmmo <= 0 || this.player.state !== "alive") return;
+    const alpha = this.rocketBtn.drag < 18 ? .22 : .78;
+    const h = this.player.jump.height;
+    const sx = this.player.x, sy = this.player.y - h;
+    const ex = sx + this.rocketBtn.aimX * 260, ey = sy + this.rocketBtn.aimY * 260;
+    this.gfx.lineStyle(4, 0xffd36c, alpha).beginPath().moveTo(sx, sy).lineTo(ex, ey).strokePath();
+    this.gfx.fillStyle(0xfff0b2, alpha).fillCircle(ex, ey, 7);
+  }
+
   drawArena() {
     const g = this.add.graphics().setDepth(0);
     this.drawFloorTiles();
@@ -234,12 +454,31 @@ export class ArenaScene extends Phaser.Scene {
   gap(g: Phaser.GameObjects.Graphics, r: Rect) { g.fillStyle(0x111f20, .24).fillRoundedRect(r.x, r.y, r.w, r.h, 8).lineStyle(3, 0x5eb5dc, .72).strokeRoundedRect(r.x + 3, r.y + 3, r.w - 6, r.h - 6, 7); }
   wall(g: Phaser.GameObjects.Graphics, r: Rect) { g.fillStyle(0xb9c8be, .16).fillRoundedRect(r.x, r.y, r.w, r.h, 6).lineStyle(2, 0x6f837b, .95).strokeRoundedRect(r.x, r.y, r.w, r.h, 6); }
 
-  layoutTouch() { this.joy.ox = Math.max(96, this.scale.width * .12); this.joy.oy = this.scale.height - 96; this.jumpBtn.x = this.scale.width - Math.max(84, this.scale.width * .09); this.jumpBtn.y = this.scale.height - 94; }
+  layoutTouch() {
+    this.joy.ox = Math.max(96, this.scale.width * .12);
+    this.joy.oy = this.scale.height - 96;
+    this.jumpBtn.x = this.scale.width - Math.max(84, this.scale.width * .09);
+    this.jumpBtn.y = this.scale.height - 94;
+    this.rocketBtn.x = this.jumpBtn.x - 96;
+    this.rocketBtn.y = this.jumpBtn.y + 10;
+  }
   pointerDown(p: Phaser.Input.Pointer) {
+    if (Phaser.Math.Distance.Between(p.x, p.y, this.rocketBtn.x, this.rocketBtn.y) <= this.rocketBtn.r + 24 && this.rocketBtn.id < 0) {
+      this.rocketBtn.id = p.id;
+      this.rocketBtn.held = true;
+      this.rocketBtn.dragged = false;
+      this.rocketBtn.drag = 0;
+      this.updateRocketAim(p);
+      return;
+    }
     if (Phaser.Math.Distance.Between(p.x, p.y, this.jumpBtn.x, this.jumpBtn.y) <= this.jumpBtn.r + 24 && this.jumpBtn.id < 0) { this.jumpBtn.id = p.id; this.jumpBtn.held = true; this.jumpBtn.pressed = true; return; }
     if (p.x < this.scale.width * .58 && this.joy.id < 0) { this.joy.id = p.id; this.joy.active = true; this.joy.ox = p.x; this.joy.oy = p.y; this.pointerMove(p); }
   }
   pointerMove(p: Phaser.Input.Pointer) {
+    if (p.id === this.rocketBtn.id) {
+      this.updateRocketAim(p);
+      return;
+    }
     if (p.id !== this.joy.id) return;
     const dx = p.x - this.joy.ox, dy = p.y - this.joy.oy, d = Math.hypot(dx, dy), r = 62;
     this.joy.x = d ? dx / d : 0; this.joy.y = d ? dy / d : 0; this.joy.len = Math.min(1, d / r);
@@ -247,17 +486,110 @@ export class ArenaScene extends Phaser.Scene {
   pointerUp(p: Phaser.Input.Pointer) {
     if (p.id === this.joy.id) { this.joy.id = -1; this.joy.x = 0; this.joy.y = 0; this.joy.len = 0; this.layoutTouch(); }
     if (p.id === this.jumpBtn.id) { this.jumpBtn.id = -1; this.jumpBtn.held = false; }
+    if (p.id === this.rocketBtn.id) {
+      const dragged = this.rocketBtn.dragged;
+      const cancelled = dragged && this.rocketBtn.drag < 18;
+      if (!cancelled) {
+        if (dragged) this.firePlayerRocket({ x: this.rocketBtn.aimX, y: this.rocketBtn.aimY });
+        else this.firePlayerRocketAtNearest();
+      }
+      this.rocketBtn.id = -1;
+      this.rocketBtn.held = false;
+      this.rocketBtn.drag = 0;
+      this.rocketBtn.dragged = false;
+    }
   }
   drawTouch() {
     this.uiGfx.clear().fillStyle(0xffffff, .38).lineStyle(2, 0x17302d, .18).fillCircle(this.joy.ox, this.joy.oy, 62).strokeCircle(this.joy.ox, this.joy.oy, 62);
     this.uiGfx.fillStyle(0x17302d, .42).fillCircle(this.joy.ox + this.joy.x * this.joy.len * 48, this.joy.oy + this.joy.y * this.joy.len * 48, 22);
     this.uiGfx.fillStyle(this.jumpBtn.held ? 0xffd86b : 0xffffff, this.jumpBtn.held ? .84 : .52).lineStyle(3, this.jumpBtn.held ? 0xb77516 : 0x17302d, .28).fillCircle(this.jumpBtn.x, this.jumpBtn.y, this.jumpBtn.r).strokeCircle(this.jumpBtn.x, this.jumpBtn.y, this.jumpBtn.r);
+    this.drawRocketButton();
+  }
+
+  updateRocketAim(p: Phaser.Input.Pointer) {
+    const dx = p.x - this.rocketBtn.x, dy = p.y - this.rocketBtn.y, d = Math.hypot(dx, dy);
+    this.rocketBtn.drag = d;
+    if (d > 10) {
+      this.rocketBtn.aimX = dx / d;
+      this.rocketBtn.aimY = dy / d;
+    }
+    if (d > 16) this.rocketBtn.dragged = true;
+  }
+
+  drawRocketButton() {
+    const ready = this.player.state === "alive" && this.player.rocketAmmo > 0;
+    const active = this.rocketBtn.held && ready;
+    const fill = ready ? 0xf59f2f : 0x8b8f90;
+    const stroke = active ? 0xfff0b2 : ready ? 0x8f3d0f : 0x4d5355;
+    this.uiGfx.fillStyle(fill, ready ? .86 : .42).lineStyle(3, stroke, active ? .95 : .58).fillCircle(this.rocketBtn.x, this.rocketBtn.y, this.rocketBtn.r).strokeCircle(this.rocketBtn.x, this.rocketBtn.y, this.rocketBtn.r);
+    this.uiGfx.fillStyle(0xffffff, ready ? .95 : .48).fillRect(this.rocketBtn.x - 16, this.rocketBtn.y - 4, 26, 8);
+    this.uiGfx.fillStyle(0x3a2406, ready ? .95 : .48).fillCircle(this.rocketBtn.x + 12, this.rocketBtn.y - 5, 6);
+    this.uiGfx.lineStyle(3, 0xffffff, ready ? .92 : .42).strokeCircle(this.rocketBtn.x + 19, this.rocketBtn.y + 18, 13);
+    this.uiGfx.fillStyle(0x17211f, ready ? .95 : .56).fillCircle(this.rocketBtn.x + 19, this.rocketBtn.y + 18, 11);
+    this.uiGfx.fillStyle(0xffffff, ready ? .96 : .5);
+    const ammo = String(this.player.rocketAmmo);
+    for (let i = 0; i < ammo.length; i++) this.drawDigit(ammo[i], this.rocketBtn.x + 15 + i * 8, this.rocketBtn.y + 12);
+    if (active && this.rocketBtn.dragged) {
+      const len = Math.min(68, Math.max(28, this.rocketBtn.drag));
+      this.uiGfx.lineStyle(5, 0xfff0b2, this.rocketBtn.drag < 18 ? .38 : .9)
+        .beginPath()
+        .moveTo(this.rocketBtn.x, this.rocketBtn.y)
+        .lineTo(this.rocketBtn.x + this.rocketBtn.aimX * len, this.rocketBtn.y + this.rocketBtn.aimY * len)
+        .strokePath();
+    }
+  }
+
+  drawDigit(digit: string, x: number, y: number) {
+    const segments: Record<string, number[]> = {
+      "0": [0, 1, 2, 3, 4, 5],
+      "1": [1, 2],
+      "2": [0, 1, 6, 4, 3],
+      "3": [0, 1, 6, 2, 3],
+      "4": [5, 6, 1, 2],
+      "5": [0, 5, 6, 2, 3],
+      "6": [0, 5, 6, 4, 3, 2],
+      "7": [0, 1, 2],
+      "8": [0, 1, 2, 3, 4, 5, 6],
+      "9": [0, 1, 2, 3, 5, 6],
+    };
+    const lines = [
+      [x, y, x + 7, y], [x + 7, y, x + 7, y + 6], [x + 7, y + 7, x + 7, y + 13],
+      [x, y + 13, x + 7, y + 13], [x, y + 7, x, y + 13], [x, y, x, y + 6], [x, y + 6, x + 7, y + 6],
+    ];
+    this.uiGfx.lineStyle(2, 0xffffff, .96);
+    for (const index of segments[digit] ?? []) this.uiGfx.beginPath().moveTo(lines[index][0], lines[index][1]).lineTo(lines[index][2], lines[index][3]).strokePath();
+  }
+
+  firePlayerRocketAtNearest() {
+    const target = this.bots
+      .filter((b) => b.alive && b.team !== this.player.team && !this.level.walls.some((w) => lineIntersectsRect(this.player, b, w)))
+      .sort((a, b) => len(this.player.x - a.x, this.player.y - a.y) - len(this.player.x - b.x, this.player.y - b.y))[0];
+    if (target) this.firePlayerRocket({ x: target.x - this.player.x, y: target.y - this.player.y });
+    else this.firePlayerRocket(this.player.lastMoveDir);
+  }
+
+  firePlayerRocket(direction: Vec2) {
+    if (this.player.state !== "alive" || this.player.rocketAmmo <= 0) return;
+    const d = len(direction.x, direction.y);
+    if (d < .001) return;
+    const nx = direction.x / d, ny = direction.y / d;
+    this.player.rocketAmmo--;
+    this.projectiles.push(new Projectile(
+      this.player.x + nx * (this.player.radius + T.rocketProjectileRadius + 3),
+      this.player.y - this.player.jump.height + ny * (this.player.radius + T.rocketProjectileRadius + 3),
+      nx * T.rocketSpeed,
+      ny * T.rocketSpeed,
+      this.player,
+      "rocket",
+    ));
   }
   updateHud() {
     document.querySelector("#red-score")!.textContent = String(this.flags.redScore);
     document.querySelector("#blue-score")!.textContent = String(this.flags.blueScore);
     document.querySelector("#flag-state")!.textContent = this.flags.text(this.player);
-    document.querySelector("#player-hp")!.textContent = String(Math.max(0, Math.ceil(this.player.hp)));
+    document.querySelector("#player-hp")!.textContent = `${Math.max(0, Math.ceil(this.player.hp))}/${T.playerMaxHp}`;
+    document.querySelector("#player-armor")!.textContent = String(Math.max(0, Math.ceil(this.player.armor)));
+    document.querySelector("#weapon")!.textContent = this.player.rocketAmmo > 0 ? `Rocket x${this.player.rocketAmmo}` : "Auto";
     document.querySelector("#speed")!.textContent = this.player.speed().toFixed(0);
     document.querySelector("#jump")!.textContent = this.player.jump.state();
     document.querySelector("#capture")!.textContent = this.flags.capture(this.player);
@@ -271,9 +603,12 @@ jump height: ${this.player.jump.height.toFixed(1)}
 jump charge: ${Math.round(this.player.jump.charge() * 100)}%
 friction: ${this.player.movement.currentFriction.toFixed(2)}
 carried flag: ${this.player.carriedFlag ?? "none"}
+armor: ${Math.ceil(this.player.armor)}
+weapon: ${this.player.rocketAmmo > 0 ? `rocket ${this.player.rocketAmmo}` : "auto"}
 projectiles: ${this.projectiles.length}
-bot hp: ${this.bots.map((b) => `${b.role}:${Math.max(0, Math.ceil(b.hp))}`).join(", ")}
-nearest enemy: ${Math.min(...this.bots.filter((b) => b.alive).map((b) => Phaser.Math.Distance.Between(this.player.x, this.player.y, b.x, b.y)), 9999).toFixed(0)}
+teams: ${this.redCount}v${this.blueCount}
+bot hp: ${this.bots.map((b) => `${b.team}-${b.role}-${b.state}:${Math.max(0, Math.ceil(b.hp))}`).join(", ")}
+nearest enemy: ${Math.min(...this.bots.filter((b) => b.alive && b.team !== this.player.team).map((b) => Phaser.Math.Distance.Between(this.player.x, this.player.y, b.x, b.y)), 9999).toFixed(0)}
 over gap: ${this.player.overGap ? "yes" : "no"}
 last safe: ${this.player.lastSafe.x.toFixed(0)}, ${this.player.lastSafe.y.toFixed(0)}`;
   }
@@ -292,7 +627,24 @@ last safe: ${this.player.lastSafe.x.toFixed(0)}, ${this.player.lastSafe.y.toFixe
       button.onclick = () => {
         if (!LEVELS.some((level) => level.id === mapId)) return;
         panel?.classList.add("is-hidden");
-        this.scene.restart({ mapId });
+        this.restartWithSettings(mapId);
+      };
+    }
+
+    const redSelect = document.querySelector<HTMLSelectElement>("#red-count");
+    const blueSelect = document.querySelector<HTMLSelectElement>("#blue-count");
+    if (redSelect) {
+      redSelect.value = String(this.redCount);
+      redSelect.onchange = () => {
+        this.redCount = this.teamCount(Number(redSelect.value), this.redCount);
+        this.restartWithSettings();
+      };
+    }
+    if (blueSelect) {
+      blueSelect.value = String(this.blueCount);
+      blueSelect.onchange = () => {
+        this.blueCount = this.teamCount(Number(blueSelect.value), this.blueCount);
+        this.restartWithSettings();
       };
     }
 

@@ -9,7 +9,7 @@
     <div id="game"></div>
     <div id="hud">
       <div class="score"><b>RED <span id="red-score">0</span></b><span id="flag-state">Enemy flag available</span><b><span id="blue-score">0</span> BLUE</b></div>
-      <div class="stats">HP <span id="player-hp">100</span> | Speed <span id="speed">0</span> | Jump <span id="jump">Ready</span> | <span id="capture">Find blue flag</span></div>
+      <div class="stats">HP <span id="player-hp">100/100</span> | Armor <span id="player-armor">0</span> | <span id="weapon">Auto</span> | Speed <span id="speed">0</span> | Jump <span id="jump">Ready</span> | <span id="capture">Find blue flag</span></div>
       <div class="hud-actions">
         <button id="settings-button" type="button" aria-label="Open settings">SET</button>
         <button id="fullscreen-button" type="button" aria-label="Toggle fullscreen">FS</button>
@@ -20,6 +20,19 @@
         <button type="button" data-map="training-crossing">Training Crossing</button>
         <button type="button" data-map="midline-rush">Midline Rush</button>
         <button type="button" data-map="flank-switch">Flank Switch</button>
+        <div class="settings-title">Teams</div>
+        <label>Red <select id="red-count" aria-label="Red team size">
+          <option value="1">1 player</option>
+          <option value="2">2 players</option>
+          <option value="3">3 players</option>
+          <option value="4">4 players</option>
+        </select></label>
+        <label>Blue <select id="blue-count" aria-label="Blue team size">
+          <option value="1">1 player</option>
+          <option value="2" selected>2 players</option>
+          <option value="3">3 players</option>
+          <option value="4">4 players</option>
+        </select></label>
       </div>
       <pre id="debug"></pre>
     </div>
