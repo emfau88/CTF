@@ -2,19 +2,34 @@
 html, body, #game { width: 100%; height: 100%; margin: 0; overflow: hidden; touch-action: none; user-select: none; background: #edf5ee; font-family: Arial, sans-serif; }
 canvas { display: block; }
 #hud { position: fixed; inset: 0; pointer-events: none; color: #17302d; font-size: 13px; }
-.score { position: absolute; top: 10px; left: 10px; right: 10px; display: grid; grid-template-columns: 92px 1fr 92px; gap: 8px; align-items: center; text-align: center; }
-.score > *, .stats, #debug, .hud-actions button, .settings-panel { background: rgb(255 255 255 / .78); border: 1px solid rgb(30 50 45 / .15); border-radius: 8px; box-shadow: 0 8px 22px rgb(20 40 34 / .12); backdrop-filter: blur(10px); padding: 8px 10px; }
-.stats { position: absolute; top: 58px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-weight: 700; }
-.hud-actions { position: absolute; top: 58px; right: 10px; display: flex; gap: 8px; pointer-events: auto; }
-.hud-actions button { width: 42px; height: 36px; padding: 0; color: #17302d; font: 700 12px/1 Arial, sans-serif; cursor: pointer; }
+.score { position: absolute; top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); right: max(8px, env(safe-area-inset-right)); display: flex; justify-content: space-between; align-items: center; }
+.score-team, #debug, .hud-actions button, .settings-panel { background: rgb(255 255 255 / .78); border: 1px solid rgb(30 50 45 / .15); border-radius: 8px; box-shadow: 0 8px 22px rgb(20 40 34 / .12); backdrop-filter: blur(10px); }
+.score-team { min-width: 82px; height: 36px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 10px; font-size: 16px; }
+.score-red { color: #a9262d; border-left: 4px solid #d63b43; }
+.score-blue { color: #2459a9; border-right: 4px solid #3479df; }
+.score-label { font-size: 10px; }
+#status-toast { position: absolute; top: max(52px, calc(env(safe-area-inset-top) + 48px)); left: 50%; translate: -50% -4px; min-width: 150px; max-width: min(78vw, 360px); padding: 7px 12px; border-radius: 7px; background: rgb(18 35 32 / .86); color: white; font-weight: 800; text-align: center; opacity: 0; transition: opacity 140ms ease, translate 140ms ease; }
+#status-toast.is-visible { opacity: 1; translate: -50% 0; }
+.hud-actions { position: absolute; top: max(8px, env(safe-area-inset-top)); left: 50%; translate: -50% 0; pointer-events: auto; }
+.hud-actions button { width: 36px; height: 36px; padding: 0; color: #17302d; font: 700 21px/1 Arial, sans-serif; cursor: pointer; }
 .hud-actions button:active { transform: translateY(1px); }
-.settings-panel { position: absolute; top: 104px; right: 10px; display: grid; gap: 8px; width: 190px; pointer-events: auto; }
+.settings-panel { position: absolute; top: max(52px, calc(env(safe-area-inset-top) + 48px)); right: max(8px, env(safe-area-inset-right)); display: grid; gap: 8px; width: 190px; padding: 10px; pointer-events: auto; }
 .settings-panel.is-hidden { display: none; }
 .settings-title { font-weight: 800; }
 .settings-panel button { height: 34px; border: 1px solid rgb(30 50 45 / .18); border-radius: 7px; background: rgb(255 255 255 / .75); color: #17302d; font-weight: 700; cursor: pointer; text-align: left; padding: 0 10px; }
 .settings-panel button.is-active { border-color: #255ec8; color: #255ec8; background: rgb(215 229 255 / .9); }
 .settings-panel label { display: grid; grid-template-columns: 42px 1fr; align-items: center; gap: 8px; color: #17302d; font-size: 12px; font-weight: 800; }
 .settings-panel select { height: 32px; border: 1px solid rgb(30 50 45 / .18); border-radius: 7px; background: rgb(255 255 255 / .82); color: #17302d; font-weight: 700; padding: 0 8px; }
+.settings-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.settings-actions button { padding: 0 7px; text-align: center; font-size: 11px; }
 #debug { position: absolute; left: 10px; bottom: 10px; width: 320px; max-width: calc(100vw - 20px); margin: 0; font: 11px/1.35 Consolas, monospace; white-space: pre-wrap; }
 #debug.is-hidden { display: none; }
-@media (max-width: 620px) { #debug { display: none; } #debug.is-visible { display: block; } .score { grid-template-columns: 70px 1fr 70px; font-size: 12px; } .stats { top: 54px; font-size: 11px; } .hud-actions { top: 94px; } .settings-panel { top: 140px; } }
+@media (max-width: 620px), (max-height: 520px) {
+  #debug { display: none; }
+  #debug.is-visible { display: block; }
+  .score-team { min-width: 64px; height: 32px; gap: 6px; padding: 0 7px; font-size: 15px; }
+  .score-label { font-size: 8px; }
+  .hud-actions button { width: 32px; height: 32px; font-size: 18px; }
+  #status-toast { top: max(45px, calc(env(safe-area-inset-top) + 41px)); padding: 6px 10px; font-size: 11px; }
+  .settings-panel { top: max(45px, calc(env(safe-area-inset-top) + 41px)); max-height: calc(100vh - 54px); overflow-y: auto; }
+}

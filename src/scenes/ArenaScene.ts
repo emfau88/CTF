@@ -48,7 +48,7 @@ export class ArenaScene extends Phaser.Scene {
   cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   wasd!: Record<string, Phaser.Input.Keyboard.Key>;
   jumpKey!: Phaser.Input.Keyboard.Key;
-  joy = { active: false, id: -1, ox: 110, oy: 500, x: 0, y: 0, len: 0 };
+  joy = { active: false, id: -1, ox: 110, oy: 500, x: 0, y: 0, len: 0, r: 62, knobR: 22 };
   jumpBtn = { id: -1, x: 0, y: 0, r: 52, held: false, pressed: false };
   rocketBtn = { id: -1, x: 0, y: 0, r: 43, held: false, aimX: 1, aimY: 0, drag: 0, dragged: false };
   railBtn = { id: -1, x: 0, y: 0, r: 43, held: false, aimX: 1, aimY: 0, drag: 0, dragged: false };
@@ -82,6 +82,10 @@ export class ArenaScene extends Phaser.Scene {
   spawnPadParticleTimer = 0;
   trailTimer = 0;
   lastState = "alive";
+  lastFlagState = "home";
+  lastRedScore = 0;
+  lastBlueScore = 0;
+  hudNoticeUntil = 0;
   debugVisible = window.innerWidth > 620;
 
   preload() {
@@ -209,6 +213,10 @@ export class ArenaScene extends Phaser.Scene {
     this.spawnPadParticleTimer = 0;
     this.trailTimer = 0;
     this.lastState = "alive";
+    this.lastFlagState = "home";
+    this.lastRedScore = 0;
+    this.lastBlueScore = 0;
+    this.hudNoticeUntil = 0;
   }
 
   update(_t: number, delta: number) {
@@ -888,17 +896,24 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   layoutTouch() {
-    this.joy.ox = Math.max(96, this.scale.width * .12);
-    this.joy.oy = this.scale.height - 96;
-    this.jumpBtn.x = this.scale.width - Math.max(84, this.scale.width * .09);
-    this.jumpBtn.y = this.scale.height - 94;
-    this.rocketBtn.x = this.jumpBtn.x - 96;
-    this.rocketBtn.y = this.jumpBtn.y + 10;
-    this.railBtn.x = this.jumpBtn.x - 190;
-    this.railBtn.y = this.jumpBtn.y + 10;
+    const compact = this.scale.width <= 720 || this.scale.height <= 520;
+    this.joy.r = compact ? 50 : 62;
+    this.joy.knobR = compact ? 18 : 22;
+    this.jumpBtn.r = compact ? 44 : 52;
+    this.rocketBtn.r = compact ? 35 : 43;
+    this.railBtn.r = compact ? 35 : 43;
+    const bottomInset = compact ? 68 : 96;
+    this.joy.ox = Math.max(compact ? 70 : 96, this.scale.width * (compact ? .09 : .12));
+    this.joy.oy = this.scale.height - bottomInset;
+    this.jumpBtn.x = this.scale.width - Math.max(compact ? 60 : 84, this.scale.width * (compact ? .07 : .09));
+    this.jumpBtn.y = this.scale.height - (compact ? 66 : 94);
+    this.rocketBtn.x = this.jumpBtn.x - (compact ? 76 : 96);
+    this.rocketBtn.y = this.jumpBtn.y + (compact ? 5 : 10);
+    this.railBtn.x = this.jumpBtn.x - (compact ? 55 : 190);
+    this.railBtn.y = this.jumpBtn.y - (compact ? 68 : -10);
   }
   pointerDown(p: Phaser.Input.Pointer) {
-    if (Phaser.Math.Distance.Between(p.x, p.y, this.railBtn.x, this.railBtn.y) <= this.railBtn.r + 20 && this.railBtn.id < 0) {
+    if (this.player.railAmmo > 0 && Phaser.Math.Distance.Between(p.x, p.y, this.railBtn.x, this.railBtn.y) <= this.railBtn.r + 20 && this.railBtn.id < 0) {
       this.railBtn.id = p.id;
       this.railBtn.held = true;
       this.railBtn.dragged = false;
@@ -906,7 +921,7 @@ export class ArenaScene extends Phaser.Scene {
       this.updateRailAim(p);
       return;
     }
-    if (Phaser.Math.Distance.Between(p.x, p.y, this.rocketBtn.x, this.rocketBtn.y) <= this.rocketBtn.r + 24 && this.rocketBtn.id < 0) {
+    if (this.player.rocketAmmo > 0 && Phaser.Math.Distance.Between(p.x, p.y, this.rocketBtn.x, this.rocketBtn.y) <= this.rocketBtn.r + 24 && this.rocketBtn.id < 0) {
       this.rocketBtn.id = p.id;
       this.rocketBtn.held = true;
       this.rocketBtn.dragged = false;
@@ -927,7 +942,7 @@ export class ArenaScene extends Phaser.Scene {
       return;
     }
     if (p.id !== this.joy.id) return;
-    const dx = p.x - this.joy.ox, dy = p.y - this.joy.oy, d = Math.hypot(dx, dy), r = 62;
+    const dx = p.x - this.joy.ox, dy = p.y - this.joy.oy, d = Math.hypot(dx, dy), r = this.joy.r;
     this.joy.x = d ? dx / d : 0; this.joy.y = d ? dy / d : 0; this.joy.len = Math.min(1, d / r);
   }
   pointerUp(p: Phaser.Input.Pointer) {
@@ -959,8 +974,9 @@ export class ArenaScene extends Phaser.Scene {
     }
   }
   drawTouch() {
-    this.uiGfx.clear().fillStyle(0xffffff, .38).lineStyle(2, 0x17302d, .18).fillCircle(this.joy.ox, this.joy.oy, 62).strokeCircle(this.joy.ox, this.joy.oy, 62);
-    this.uiGfx.fillStyle(0x17302d, .42).fillCircle(this.joy.ox + this.joy.x * this.joy.len * 48, this.joy.oy + this.joy.y * this.joy.len * 48, 22);
+    const joyTravel = this.joy.r - this.joy.knobR + 8;
+    this.uiGfx.clear().fillStyle(0xffffff, .38).lineStyle(2, 0x17302d, .18).fillCircle(this.joy.ox, this.joy.oy, this.joy.r).strokeCircle(this.joy.ox, this.joy.oy, this.joy.r);
+    this.uiGfx.fillStyle(0x17302d, .42).fillCircle(this.joy.ox + this.joy.x * this.joy.len * joyTravel, this.joy.oy + this.joy.y * this.joy.len * joyTravel, this.joy.knobR);
     this.uiGfx.fillStyle(this.jumpBtn.held ? 0xffd86b : 0xffffff, this.jumpBtn.held ? .84 : .52).lineStyle(3, this.jumpBtn.held ? 0xb77516 : 0x17302d, .28).fillCircle(this.jumpBtn.x, this.jumpBtn.y, this.jumpBtn.r).strokeCircle(this.jumpBtn.x, this.jumpBtn.y, this.jumpBtn.r);
     this.drawRocketButton();
     this.drawRailButton();
@@ -988,6 +1004,9 @@ export class ArenaScene extends Phaser.Scene {
   drawRocketButton() {
     const ready = this.player.state === "alive" && this.player.rocketAmmo > 0;
     const active = this.rocketBtn.held && ready;
+    const compact = this.rocketBtn.r <= 36;
+    const buttonScale = compact ? .27 : .38;
+    const badgeOffset = compact ? 24 : 31;
     if (!this.rocketButtonView) {
       this.rocketButtonView = this.add.image(this.rocketBtn.x, this.rocketBtn.y, "uiRocketButton").setScrollFactor(0).setDepth(1001).setScale(.38);
     }
@@ -1005,15 +1024,20 @@ export class ArenaScene extends Phaser.Scene {
     }
     this.rocketButtonView
       .setPosition(this.rocketBtn.x, this.rocketBtn.y)
-      .setScale(active ? .41 : .38)
-      .setAlpha(ready ? 1 : .42);
+      .setScale(active ? buttonScale + .025 : buttonScale)
+      .setAlpha(ready ? 1 : .42)
+      .setVisible(ready);
     this.ammoBadgeView
-      .setPosition(this.rocketBtn.x + 31, this.rocketBtn.y + 31)
-      .setAlpha(ready ? .95 : .48);
+      .setPosition(this.rocketBtn.x + badgeOffset, this.rocketBtn.y + badgeOffset)
+      .setScale(compact ? .12 : .16)
+      .setAlpha(ready ? .95 : .48)
+      .setVisible(ready);
     this.ammoText
-      .setPosition(this.rocketBtn.x + 31, this.rocketBtn.y + 31)
+      .setPosition(this.rocketBtn.x + badgeOffset, this.rocketBtn.y + badgeOffset)
+      .setFontSize(compact ? 14 : 17)
       .setText(String(this.player.rocketAmmo))
-      .setAlpha(ready ? 1 : .55);
+      .setAlpha(ready ? 1 : .55)
+      .setVisible(ready);
     if (active && this.rocketBtn.dragged) {
       const len = Math.min(68, Math.max(28, this.rocketBtn.drag));
       this.uiGfx.lineStyle(5, 0xfff0b2, this.rocketBtn.drag < 18 ? .38 : .9)
@@ -1027,6 +1051,9 @@ export class ArenaScene extends Phaser.Scene {
     const hasAmmo = this.player.state === "alive" && this.player.railAmmo > 0;
     const ready = hasAmmo && this.player.railCooldown <= 0;
     const active = this.railBtn.held && ready;
+    const compact = this.railBtn.r <= 36;
+    const buttonScale = compact ? .27 : .38;
+    const badgeOffset = compact ? 24 : 31;
     if (!this.railButtonView) {
       this.railButtonView = this.add.image(this.railBtn.x, this.railBtn.y, "uiRailButton").setScrollFactor(0).setDepth(1001).setScale(.38);
     }
@@ -1044,15 +1071,20 @@ export class ArenaScene extends Phaser.Scene {
     }
     this.railButtonView
       .setPosition(this.railBtn.x, this.railBtn.y)
-      .setScale(active ? .41 : .38)
-      .setAlpha(ready ? 1 : hasAmmo ? .62 : .38);
+      .setScale(active ? buttonScale + .025 : buttonScale)
+      .setAlpha(ready ? 1 : hasAmmo ? .62 : .38)
+      .setVisible(hasAmmo);
     this.railAmmoBadgeView
-      .setPosition(this.railBtn.x + 31, this.railBtn.y + 31)
-      .setAlpha(hasAmmo ? .95 : .45);
+      .setPosition(this.railBtn.x + badgeOffset, this.railBtn.y + badgeOffset)
+      .setScale(compact ? .12 : .16)
+      .setAlpha(hasAmmo ? .95 : .45)
+      .setVisible(hasAmmo);
     this.railAmmoText
-      .setPosition(this.railBtn.x + 31, this.railBtn.y + 31)
+      .setPosition(this.railBtn.x + badgeOffset, this.railBtn.y + badgeOffset)
+      .setFontSize(compact ? 14 : 17)
       .setText(String(this.player.railAmmo))
-      .setAlpha(hasAmmo ? 1 : .5);
+      .setAlpha(hasAmmo ? 1 : .5)
+      .setVisible(hasAmmo);
     if (hasAmmo && !ready) {
       const cooldownRatio = Phaser.Math.Clamp(this.player.railCooldown / T.railCooldownMs, 0, 1);
       this.uiGfx.lineStyle(5, 0x62ff91, .72).beginPath()
@@ -1127,17 +1159,25 @@ export class ArenaScene extends Phaser.Scene {
   updateHud() {
     document.querySelector("#red-score")!.textContent = String(this.flags.redScore);
     document.querySelector("#blue-score")!.textContent = String(this.flags.blueScore);
-    document.querySelector("#flag-state")!.textContent = this.flags.text(this.player);
-    document.querySelector("#player-hp")!.textContent = `${Math.max(0, Math.ceil(this.player.hp))}/${T.playerMaxHp}`;
-    document.querySelector("#player-armor")!.textContent = String(Math.max(0, Math.ceil(this.player.armor)));
-    const weapons = [
-      this.player.rocketAmmo > 0 ? `Rocket x${this.player.rocketAmmo}` : "",
-      this.player.railAmmo > 0 ? `Rail x${this.player.railAmmo}` : "",
-    ].filter(Boolean);
-    document.querySelector("#weapon")!.textContent = weapons.join(" | ") || "Auto";
-    document.querySelector("#speed")!.textContent = this.player.speed().toFixed(0);
-    document.querySelector("#jump")!.textContent = this.player.jump.state();
-    document.querySelector("#capture")!.textContent = this.flags.capture(this.player);
+    const flagState = this.player.carriedFlag
+      ? "player-carrier"
+      : this.flags.flags.red.carrier
+        ? "red-stolen"
+        : this.flags.flags.blue.carrier
+          ? "blue-taken"
+          : "home";
+    if (this.flags.redScore !== this.lastRedScore) this.showHudNotice("RED scores!");
+    else if (this.flags.blueScore !== this.lastBlueScore) this.showHudNotice("BLUE scores!");
+    else if (flagState !== this.lastFlagState) {
+      if (flagState === "player-carrier") this.showHudNotice("Blue flag taken - bring it home!");
+      else if (flagState === "red-stolen") this.showHudNotice("Red flag stolen!");
+      else if (flagState === "blue-taken") this.showHudNotice("Blue flag taken!");
+      else if (this.lastFlagState !== "home") this.showHudNotice("Flag returned");
+    }
+    this.lastFlagState = flagState;
+    this.lastRedScore = this.flags.redScore;
+    this.lastBlueScore = this.flags.blueScore;
+    document.querySelector("#status-toast")?.classList.toggle("is-visible", this.time.now < this.hudNoticeUntil);
     const debug = document.querySelector("#debug")!;
     debug.classList.toggle("is-hidden", !this.debugVisible);
     debug.classList.toggle("is-visible", this.debugVisible);
@@ -1156,6 +1196,11 @@ bot hp: ${this.bots.map((b) => `${b.team}-${b.role}-${b.state}:${Math.max(0, Mat
 nearest enemy: ${Math.min(...this.bots.filter((b) => b.alive && b.team !== this.player.team).map((b) => Phaser.Math.Distance.Between(this.player.x, this.player.y, b.x, b.y)), 9999).toFixed(0)}
 over gap: ${this.player.overGap ? "yes" : "no"}
 last safe: ${this.player.lastSafe.x.toFixed(0)}, ${this.player.lastSafe.y.toFixed(0)}`;
+  }
+  showHudNotice(text: string) {
+    const notice = document.querySelector("#status-toast");
+    if (notice) notice.textContent = text;
+    this.hudNoticeUntil = this.time.now + 1800;
   }
 
   setupHudButtons() {

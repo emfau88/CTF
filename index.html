@@ -8,12 +8,13 @@
   <body>
     <div id="game"></div>
     <div id="hud">
-      <div class="score"><b>RED <span id="red-score">0</span></b><span id="flag-state">Enemy flag available</span><b><span id="blue-score">0</span> BLUE</b></div>
-      <div class="stats">HP <span id="player-hp">100/100</span> | Armor <span id="player-armor">0</span> | <span id="weapon">Auto</span> | Speed <span id="speed">0</span> | Jump <span id="jump">Ready</span> | <span id="capture">Find blue flag</span></div>
+      <div class="score">
+        <b class="score-team score-red"><span class="score-label">RED</span><span id="red-score">0</span></b>
+        <b class="score-team score-blue"><span id="blue-score">0</span><span class="score-label">BLUE</span></b>
+      </div>
+      <div id="status-toast" role="status" aria-live="polite"></div>
       <div class="hud-actions">
-        <button id="settings-button" type="button" aria-label="Open settings">SET</button>
-        <button id="fullscreen-button" type="button" aria-label="Toggle fullscreen">FS</button>
-        <button id="debug-button" type="button" aria-label="Toggle debug">DBG</button>
+        <button id="settings-button" type="button" aria-label="Open settings" title="Settings">&#9881;</button>
       </div>
       <div id="settings-panel" class="settings-panel is-hidden">
         <div class="settings-title">Maps</div>
@@ -33,6 +34,11 @@
           <option value="3">3 players</option>
           <option value="4">4 players</option>
         </select></label>
+        <div class="settings-title">Display</div>
+        <div class="settings-actions">
+          <button id="fullscreen-button" type="button">Fullscreen</button>
+          <button id="debug-button" type="button">Debug data</button>
+        </div>
       </div>
       <pre id="debug"></pre>
     </div>
