@@ -84,6 +84,20 @@ export function preloadArenaAssets(scene: Phaser.Scene) {
     frameWidth: 128,
     frameHeight: 128,
   });
+  scene.load.image("industrialFloorMetal", assetUrl("industrial/floor-metal.png"));
+  scene.load.image("industrialBaseRed", assetUrl("industrial/base-red.png"));
+  scene.load.image("industrialBaseBlue", assetUrl("industrial/base-blue.png"));
+  scene.load.image("industrialWallHorizontal", assetUrl("industrial/wall-horizontal.png"));
+  scene.load.image("industrialWallVertical", assetUrl("industrial/wall-vertical.png"));
+  scene.load.image("industrialMaintenancePit", assetUrl("industrial/maintenance-pit.png"));
+  scene.load.image("industrialEnergyJunction", assetUrl("industrial/energy-junction.png"));
+  scene.load.image("industrialEnergyConduitRed", assetUrl("industrial/energy-conduit-red.png"));
+  scene.load.image("industrialEnergyConduitBlue", assetUrl("industrial/energy-conduit-blue.png"));
+  scene.load.image("industrialEnergyPulse", assetUrl("industrial/energy-pulse.png"));
+  scene.load.image("industrialSwitchGate", assetUrl("industrial/switch-gate.png"));
+  scene.load.image("industrialEdgePipes", assetUrl("industrial/edge-pipe-manifold.png"));
+  scene.load.image("industrialEdgeTank", assetUrl("industrial/edge-tank-valve.png"));
+  scene.load.image("industrialEdgeTurbine", assetUrl("industrial/edge-turbine.png"));
   scene.load.audio("step1", assetUrl("sounds/step1.wav"));
   scene.load.audio("step2", assetUrl("sounds/step2.wav"));
   scene.load.audio("step3", assetUrl("sounds/step3.wav"));

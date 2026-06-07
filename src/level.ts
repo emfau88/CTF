@@ -2,8 +2,8 @@ import type { Rect } from "./math";
 
 export type PickupKind = "health" | "armor" | "rocket" | "rail" | "whip";
 export type PickupSpawn = { kind: PickupKind; x: number; y: number };
-export type LevelTheme = "ruins" | "library" | "sports";
-export type WallVisual = "stone-wall" | "bookshelf" | "bookshelf-damaged" | "reading-table" | "sports-barrier";
+export type LevelTheme = "ruins" | "library" | "industrial";
+export type WallVisual = "stone-wall" | "bookshelf" | "bookshelf-damaged" | "reading-table" | "industrial-barrier";
 export type GapVisual = "chasm" | "collapsed-floor" | "maintenance-pit";
 export type DecorationKind =
   | "rug"
@@ -14,7 +14,13 @@ export type DecorationKind =
   | "ruins-column"
   | "ruins-overgrowth"
   | "ruins-banner-red"
-  | "ruins-banner-blue";
+  | "ruins-banner-blue"
+  | "industrial-energy-red"
+  | "industrial-energy-blue"
+  | "industrial-switch-gate"
+  | "industrial-edge-pipes"
+  | "industrial-edge-tank"
+  | "industrial-edge-turbine";
 export type LevelWall = Rect & { visual?: WallVisual };
 export type LevelGap = Rect & { visual?: GapVisual };
 export type LevelDecoration = Rect & { kind: DecorationKind };
@@ -22,7 +28,7 @@ export type LevelDecoration = Rect & { kind: DecorationKind };
 export const LEVEL_THEME_VISUALS = {
   ruins: { floorPrimary: 0, floorAccent: 1, redBase: 2, blueBase: 3, wallHorizontal: 4, wallVertical: 5, gap: 8 },
   library: { floorPrimary: 0, floorAccent: 1, redBase: 2, blueBase: 3, wallHorizontal: 4, wallVertical: 5, gap: 8 },
-  sports: { floorPrimary: 0, floorAccent: 1, redBase: 2, blueBase: 3, wallHorizontal: 4, wallVertical: 5, gap: 8 },
+  industrial: { floorPrimary: 0, floorAccent: 1, redBase: 2, blueBase: 3, wallHorizontal: 4, wallVertical: 5, gap: 8 },
 } as const;
 
 export type LevelData = {
@@ -30,6 +36,8 @@ export type LevelData = {
   name: string;
   plan: string;
   theme: LevelTheme;
+  width: number;
+  height: number;
   redSpawn: { x: number; y: number };
   blueSpawn: { x: number; y: number };
   redBase: Rect;
@@ -50,6 +58,8 @@ const trainingCrossing: LevelData = {
   name: "Training Crossing",
   plan: "Balanced starter arena with a contested central power-up court and clear jump flanks.",
   theme: "ruins",
+  width: 1500,
+  height: 820,
   redSpawn: { x: 150, y: 410 },
   blueSpawn: { x: 1350, y: 410 },
   redBase: { x: 70, y: 280, w: 190, h: 260 },
@@ -92,6 +102,8 @@ const midlineRush: LevelData = {
   name: "Grand Archive",
   plan: "A fast library arena with broad gallery lanes, an open reading hall, cross-passages, and collapsed-floor jump shortcuts.",
   theme: "library",
+  width: 1500,
+  height: 820,
   redSpawn: { x: 145, y: 410 },
   blueSpawn: { x: 1355, y: 410 },
   redBase: { x: 65, y: 285, w: 195, h: 250 },
@@ -136,33 +148,70 @@ const midlineRush: LevelData = {
 const flankSwitch: LevelData = {
   id: "flank-switch",
   name: "Flank Switch",
-  plan: "More technical map with curved wall gates, tight passages, and diagonal-feeling gap decisions.",
-  theme: "sports",
+  plan: "A wide industrial switchyard with three distinct routes, cross-lane switches, and longer flag runs.",
+  theme: "industrial",
+  width: 2500,
+  height: 820,
   redSpawn: { x: 150, y: 410 },
-  blueSpawn: { x: 1350, y: 410 },
+  blueSpawn: { x: 2350, y: 410 },
   redBase: { x: 75, y: 275, w: 190, h: 270 },
-  blueBase: { x: 1235, y: 275, w: 190, h: 270 },
+  blueBase: { x: 2235, y: 275, w: 190, h: 270 },
   walls: [
-    { x: 330, y: 150, w: 210, h: 36 }, { x: 330, y: 634, w: 210, h: 36 },
-    { x: 960, y: 150, w: 210, h: 36 }, { x: 960, y: 634, w: 210, h: 36 },
-    { x: 475, y: 250, w: 42, h: 150 }, { x: 475, y: 420, w: 42, h: 150 },
-    { x: 983, y: 250, w: 42, h: 150 }, { x: 983, y: 420, w: 42, h: 150 },
-    { x: 672, y: 145, w: 46, h: 210 }, { x: 782, y: 465, w: 46, h: 210 },
-    { x: 660, y: 392, w: 180, h: 36 },
+    { x: 330, y: 92, w: 52, h: 228, visual: "industrial-barrier" },
+    { x: 330, y: 500, w: 52, h: 228, visual: "industrial-barrier" },
+    { x: 2118, y: 92, w: 52, h: 228, visual: "industrial-barrier" },
+    { x: 2118, y: 500, w: 52, h: 228, visual: "industrial-barrier" },
+
+    { x: 530, y: 270, w: 310, h: 44, visual: "industrial-barrier" },
+    { x: 530, y: 506, w: 310, h: 44, visual: "industrial-barrier" },
+    { x: 1660, y: 270, w: 310, h: 44, visual: "industrial-barrier" },
+    { x: 1660, y: 506, w: 310, h: 44, visual: "industrial-barrier" },
+
+    { x: 920, y: 88, w: 48, h: 180, visual: "industrial-barrier" },
+    { x: 920, y: 552, w: 48, h: 180, visual: "industrial-barrier" },
+    { x: 1532, y: 88, w: 48, h: 180, visual: "industrial-barrier" },
+    { x: 1532, y: 552, w: 48, h: 180, visual: "industrial-barrier" },
+
+    { x: 1080, y: 334, w: 150, h: 42, visual: "industrial-barrier" },
+    { x: 1270, y: 444, w: 150, h: 42, visual: "industrial-barrier" },
   ],
   gaps: [
-    { x: 585, y: 235, w: 128, h: 70 }, { x: 787, y: 515, w: 128, h: 70 },
-    { x: 585, y: 515, w: 128, h: 70 }, { x: 787, y: 235, w: 128, h: 70 },
-    { x: 706, y: 338, w: 88, h: 144 },
+    { x: 1015, y: 150, w: 130, h: 68, visual: "maintenance-pit" },
+    { x: 1355, y: 150, w: 130, h: 68, visual: "maintenance-pit" },
+    { x: 1015, y: 602, w: 130, h: 68, visual: "maintenance-pit" },
+    { x: 1355, y: 602, w: 130, h: 68, visual: "maintenance-pit" },
   ],
+  decorations: [
+    { kind: "industrial-energy-red", x: 280, y: 388, w: 780, h: 44 },
+    { kind: "industrial-energy-blue", x: 1440, y: 388, w: 780, h: 44 },
+    { kind: "industrial-switch-gate", x: 804, y: 315, w: 280, h: 190 },
+    { kind: "industrial-switch-gate", x: 1416, y: 315, w: 280, h: 190 },
+    { kind: "industrial-edge-pipes", x: 410, y: -12, w: 620, h: 94 },
+    { kind: "industrial-edge-pipes", x: 1470, y: 738, w: 620, h: 94 },
+    { kind: "industrial-edge-tank", x: 60, y: -34, w: 128, h: 160 },
+    { kind: "industrial-edge-tank", x: 2312, y: 694, w: 128, h: 160 },
+    { kind: "industrial-edge-turbine", x: 1168, y: -42, w: 164, h: 164 },
+    { kind: "industrial-edge-turbine", x: 1168, y: 698, w: 164, h: 164 },
+  ],
+  combatZone: { x: 1050, y: 274, w: 400, h: 272 },
   pickups: [
     { kind: "health", x: 125, y: 315 }, { kind: "armor", x: 220, y: 315 }, { kind: "rocket", x: 125, y: 505 }, { kind: "rail", x: 215, y: 505 },
-    { kind: "health", x: 1280, y: 315 }, { kind: "armor", x: 1375, y: 315 }, { kind: "rocket", x: 1375, y: 505 }, { kind: "rail", x: 1285, y: 505 },
-    { kind: "whip", x: 285, y: 410 }, { kind: "whip", x: 1215, y: 410 },
+    { kind: "health", x: 2280, y: 315 }, { kind: "armor", x: 2375, y: 315 }, { kind: "rocket", x: 2375, y: 505 }, { kind: "rail", x: 2285, y: 505 },
+    { kind: "whip", x: 285, y: 410 }, { kind: "whip", x: 2215, y: 410 },
+    { kind: "health", x: 820, y: 410 }, { kind: "health", x: 1680, y: 410 },
+    { kind: "rail", x: 1250, y: 105 }, { kind: "rocket", x: 1250, y: 715 },
+    { kind: "armor", x: 1250, y: 410 },
   ],
   botRoutes: {
-    attacker: [{ x: 1180, y: 720 }, { x: 930, y: 720 }, { x: 750, y: 720 }, { x: 520, y: 720 }, { x: 150, y: 410 }],
-    defender: [{ x: 1200, y: 250 }, { x: 1380, y: 330 }, { x: 1380, y: 500 }, { x: 1200, y: 590 }],
+    attacker: [
+      { x: 2150, y: 690 }, { x: 1880, y: 690 }, { x: 1580, y: 690 },
+      { x: 1250, y: 690 }, { x: 920, y: 690 }, { x: 620, y: 690 },
+      { x: 350, y: 690 }, { x: 150, y: 410 },
+    ],
+    defender: [
+      { x: 2185, y: 250 }, { x: 2390, y: 310 },
+      { x: 2390, y: 510 }, { x: 2185, y: 570 },
+    ],
   },
 };
 

@@ -17,11 +17,13 @@ export type BotRole = "attacker" | "defender" | "support";
 
 class BotNavigator {
   private readonly cell = 40;
-  private readonly cols = Math.ceil(T.worldWidth / this.cell);
-  private readonly rows = Math.ceil(T.worldHeight / this.cell);
+  private readonly cols: number;
+  private readonly rows: number;
   private readonly blocked: boolean[];
 
   constructor(private level: LevelData, private radius: number) {
+    this.cols = Math.ceil(level.width / this.cell);
+    this.rows = Math.ceil(level.height / this.cell);
     this.blocked = Array.from({ length: this.cols * this.rows }, (_, index) => {
       const cell = this.cellFromIndex(index);
       const point = this.center(cell.x, cell.y);
@@ -147,7 +149,7 @@ class BotNavigator {
   }
 
   private inWorld(x: number, y: number) {
-    return x >= this.radius && y >= this.radius && x <= T.worldWidth - this.radius && y <= T.worldHeight - this.radius;
+    return x >= this.radius && y >= this.radius && x <= this.level.width - this.radius && y <= this.level.height - this.radius;
   }
 }
 
@@ -160,8 +162,8 @@ export class CollisionSystem {
 
   update(p: Player, ms: number) {
     if (p.state !== "alive") return;
-    p.x = Math.max(p.radius, Math.min(p.x, T.worldWidth - p.radius));
-    p.y = Math.max(p.radius, Math.min(p.y, T.worldHeight - p.radius));
+    p.x = Math.max(p.radius, Math.min(p.x, this.level.width - p.radius));
+    p.y = Math.max(p.radius, Math.min(p.y, this.level.height - p.radius));
     if (!(p.jump.active && p.jump.height > T.jumpHeight * .5)) {
       const pos = { x: p.x, y: p.y };
       for (let pass = 0; pass < 3; pass++) {
@@ -438,7 +440,7 @@ export class Bot {
     ]);
   }
   private routeForTeam(route: Vec2[]) {
-    return this.team === "blue" ? route : route.map((point) => ({ x: T.worldWidth - point.x, y: point.y }));
+    return this.team === "blue" ? route : route.map((point) => ({ x: this.level.width - point.x, y: point.y }));
   }
   private nextRoutePoint(route: Vec2[]): Vec2 {
     const point = route[this.routeIndex] ?? route[0] ?? this.spawn;

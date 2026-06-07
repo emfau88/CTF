@@ -165,12 +165,13 @@ Eine schnellere Bibliotheksarena mit breiten Laufwegen.
 
 ### 3. Flank Switch
 
-Eine technischere Karte mit Sportarena-Thema.
+Eine breite industrielle Sci-Fi-Arena mit längeren Flaggenläufen.
 
-- Engere Passagen und mehrere Richtungswechsel
-- Viele Abgründe im Mittelbereich
-- Mehrere mögliche Flanken- und Sprungwege
-- Die visuellen Spezialassets dieser Karte sind noch nicht vollständig
+- Drei klar unterscheidbare Hauptrouten
+- Querverbindungen für schnelle Flankenwechsel
+- Offene Mittelroute sowie Railgun- und Rocket-Flanken
+- Metallboden, industrielle Teambasen, massive Barrieren und beleuchtete Wartungsgruben
+- Zentrale Energiekreuzung als umkämpfter Orientierungspunkt
 
 ## Bot-KI
 

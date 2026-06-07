@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { T, TEAM } from "./config";
+import { TEAM } from "./config";
 import {
   LEVEL_THEME_VISUALS,
   type LevelData,
@@ -32,10 +32,19 @@ export function renderArena(
         .setDepth(-1.7);
     }
   }
+  if (level.theme === "industrial" && level.combatZone) {
+    const r = level.combatZone;
+    scene.add.image(r.x + r.w / 2, r.y + r.h / 2, "industrialEnergyJunction")
+      .setDisplaySize(r.w, r.h)
+      .setDepth(-1.7);
+  }
   if (level.theme === "ruins" || level.theme === "library") {
     const baseDepth = level.theme === "library" ? .5 : -1;
     drawRuinsBase(scene, level.redBase, "ruinsBaseRed", baseDepth);
     drawRuinsBase(scene, level.blueBase, "ruinsBaseBlue", baseDepth);
+  } else if (level.theme === "industrial") {
+    drawIndustrialBase(scene, level.redBase, "industrialBaseRed");
+    drawIndustrialBase(scene, level.blueBase, "industrialBaseBlue");
   } else {
     drawObjectSprite(scene, level.redBase, visuals.redBase, .92);
     drawObjectSprite(scene, level.blueBase, visuals.blueBase, .92);
@@ -49,6 +58,10 @@ export function renderArena(
     for (const decoration of level.decorations ?? []) drawRuinsDecoration(scene, decoration);
     for (const gap of level.gaps) drawRuinsGap(scene, gap);
     for (const wall of level.walls) drawRuinsWall(scene, g, wall);
+  } else if (level.theme === "industrial") {
+    for (const decoration of level.decorations ?? []) drawIndustrialDecoration(scene, decoration);
+    for (const gap of level.gaps) drawIndustrialGap(scene, gap);
+    for (const wall of level.walls) drawIndustrialWall(scene, g, wall);
   } else {
     for (const gap of level.gaps) drawObjectSprite(scene, gap, visuals.gap, 1);
     for (const wall of level.walls) {
@@ -56,23 +69,34 @@ export function renderArena(
     }
   }
 
-  if (level.theme !== "ruins") {
+  if (level.theme === "library") {
     g.lineStyle(1, 0xcadbd4, .28);
-    for (let x = 0; x <= T.worldWidth; x += 50) g.beginPath().moveTo(x, 0).lineTo(x, T.worldHeight).strokePath();
-    for (let y = 0; y <= T.worldHeight; y += 50) g.beginPath().moveTo(0, y).lineTo(T.worldWidth, y).strokePath();
+    for (let x = 0; x <= level.width; x += 50) g.beginPath().moveTo(x, 0).lineTo(x, level.height).strokePath();
+    for (let y = 0; y <= level.height; y += 50) g.beginPath().moveTo(0, y).lineTo(level.width, y).strokePath();
     drawZone(g, level.redBase, TEAM.red.base, TEAM.red.dark);
     drawZone(g, level.blueBase, TEAM.blue.base, TEAM.blue.dark);
     if (level.combatZone) drawCombatZone(g, level.combatZone, level.theme === "library");
-    g.lineStyle(3, 0x9dafaa, .45).beginPath().moveTo(T.worldWidth / 2, 40).lineTo(T.worldWidth / 2, T.worldHeight - 40).strokePath();
+    g.lineStyle(3, 0x9dafaa, .45).beginPath().moveTo(level.width / 2, 40).lineTo(level.width / 2, level.height - 40).strokePath();
   }
 }
 
 function drawFloorTiles(scene: Phaser.Scene, level: LevelData) {
   if (level.theme === "ruins") {
     const size = 160;
-    for (let y = 0; y < T.worldHeight; y += size) {
-      for (let x = 0; x < T.worldWidth; x += size) {
+    for (let y = 0; y < level.height; y += size) {
+      for (let x = 0; x < level.width; x += size) {
         scene.add.image(x + size / 2, y + size / 2, "ruinsFloorStone")
+          .setDisplaySize(size, size)
+          .setDepth(-2);
+      }
+    }
+    return;
+  }
+  if (level.theme === "industrial") {
+    const size = 256;
+    for (let y = 0; y < level.height; y += size) {
+      for (let x = 0; x < level.width; x += size) {
+        scene.add.image(x + size / 2, y + size / 2, "industrialFloorMetal")
           .setDisplaySize(size, size)
           .setDepth(-2);
       }
@@ -81,10 +105,10 @@ function drawFloorTiles(scene: Phaser.Scene, level: LevelData) {
   }
   const size = 50;
   const visuals = LEVEL_THEME_VISUALS[level.theme];
-  for (let y = 0; y < T.worldHeight; y += size) {
-    for (let x = 0; x < T.worldWidth; x += size) {
+  for (let y = 0; y < level.height; y += size) {
+    for (let x = 0; x < level.width; x += size) {
       if (level.theme === "library") {
-        const gallery = y < 165 || y >= T.worldHeight - 165;
+        const gallery = y < 165 || y >= level.height - 165;
         const key = gallery ? "libraryFloorWood" : "libraryFloorStone";
         scene.add.image(x + size / 2, y + size / 2, key).setDisplaySize(size, size).setDepth(-2);
         continue;
@@ -133,6 +157,85 @@ function drawRuinsGap(scene: Phaser.Scene, gap: LevelGap) {
   scene.add.image(gap.x + gap.w / 2, gap.y + gap.h / 2, "ruinsGapChasm")
     .setDisplaySize(gap.w, gap.h)
     .setDepth(1);
+}
+
+function drawIndustrialBase(
+  scene: Phaser.Scene,
+  base: Rect,
+  key: "industrialBaseRed" | "industrialBaseBlue",
+) {
+  scene.add.image(base.x + base.w / 2, base.y + base.h / 2, key)
+    .setDisplaySize(base.w + 8, base.h + 8)
+    .setDepth(-.5);
+}
+
+function drawIndustrialWall(scene: Phaser.Scene, g: Phaser.GameObjects.Graphics, wall: LevelWall) {
+  const horizontal = wall.w > wall.h;
+  g.fillStyle(0x080d12, .32).fillRoundedRect(wall.x + 5, wall.y + 7, wall.w, wall.h, 6);
+  scene.add.image(
+    wall.x + wall.w / 2,
+    wall.y + wall.h / 2,
+    horizontal ? "industrialWallHorizontal" : "industrialWallVertical",
+  )
+    .setDisplaySize(wall.w + (horizontal ? 12 : 10), wall.h + (horizontal ? 12 : 10))
+    .setDepth(2);
+}
+
+function drawIndustrialGap(scene: Phaser.Scene, gap: LevelGap) {
+  scene.add.image(gap.x + gap.w / 2, gap.y + gap.h / 2, "industrialMaintenancePit")
+    .setDisplaySize(gap.w + 8, gap.h + 8)
+    .setDepth(1);
+}
+
+function drawIndustrialDecoration(scene: Phaser.Scene, decoration: LevelDecoration) {
+  const x = decoration.x + decoration.w / 2;
+  const y = decoration.y + decoration.h / 2;
+
+  if (decoration.kind === "industrial-switch-gate") {
+    scene.add.image(x, y, "industrialSwitchGate")
+      .setDisplaySize(decoration.w, decoration.h)
+      .setDepth(1.5);
+    return;
+  }
+  const edgeKey = decoration.kind === "industrial-edge-pipes"
+    ? "industrialEdgePipes"
+    : decoration.kind === "industrial-edge-tank"
+      ? "industrialEdgeTank"
+      : decoration.kind === "industrial-edge-turbine"
+        ? "industrialEdgeTurbine"
+        : null;
+  if (edgeKey) {
+    scene.add.image(x, y, edgeKey)
+      .setDisplaySize(decoration.w, decoration.h)
+      .setDepth(.5);
+    return;
+  }
+
+  if (decoration.kind !== "industrial-energy-red" && decoration.kind !== "industrial-energy-blue") return;
+  const red = decoration.kind === "industrial-energy-red";
+  scene.add.image(x, y, red ? "industrialEnergyConduitRed" : "industrialEnergyConduitBlue")
+    .setDisplaySize(decoration.w, decoration.h)
+    .setFlipX(!red)
+    .setDepth(-1.4);
+
+  const padding = 42;
+  const fromX = red ? decoration.x + padding : decoration.x + decoration.w - padding;
+  const toX = red ? decoration.x + decoration.w - padding : decoration.x + padding;
+  const pulse = scene.add.image(fromX, y, "industrialEnergyPulse")
+    .setDisplaySize(74, 18)
+    .setFlipX(red)
+    .setTint(red ? 0xff4f4f : 0x4f8fff)
+    .setBlendMode(Phaser.BlendModes.ADD)
+    .setAlpha(.78)
+    .setDepth(-1.2);
+  scene.tweens.add({
+    targets: pulse,
+    x: toX,
+    duration: 3200,
+    ease: "Linear",
+    repeat: -1,
+    repeatDelay: 650,
+  });
 }
 
 function drawRuinsBase(

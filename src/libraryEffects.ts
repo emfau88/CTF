@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { T } from "./config";
+import type { LevelData } from "./level";
 import { len, pointSegmentDistance, type Vec2 } from "./math";
 import type { Projectile } from "./systems";
 
@@ -28,7 +29,7 @@ export class LibraryEffects {
   private dust: LibraryDust[] = [];
   private candles: LibraryCandle[] = [];
 
-  constructor(private scene: Phaser.Scene) {}
+  constructor(private scene: Phaser.Scene, private level: LevelData) {}
 
   addCandles(x: number, y: number) {
     const points = [{ x: 0, y: -14 }, { x: 7, y: -4 }, { x: -7, y: -4 }];
@@ -71,8 +72,8 @@ export class LibraryEffects {
   createAtmosphere() {
     this.gfx = this.scene.add.graphics().setDepth(8);
     this.dust = Array.from({ length: 34 }, (_, index) => ({
-      x: Phaser.Math.Between(270, T.worldWidth - 270),
-      y: Phaser.Math.Between(70, T.worldHeight - 70),
+      x: Phaser.Math.Between(270, this.level.width - 270),
+      y: Phaser.Math.Between(70, this.level.height - 70),
       speed: Phaser.Math.FloatBetween(3.5, 8),
       drift: Phaser.Math.FloatBetween(2, 7) * (index % 2 ? 1 : -1),
       phase: Phaser.Math.FloatBetween(0, Math.PI * 2),
@@ -110,8 +111,8 @@ export class LibraryEffects {
       dust.y -= dust.speed * dt;
       dust.x += Math.sin(dust.phase) * dust.drift * dt;
       if (dust.y < 55) {
-        dust.y = T.worldHeight - 55;
-        dust.x = Phaser.Math.Between(270, T.worldWidth - 270);
+        dust.y = this.level.height - 55;
+        dust.x = Phaser.Math.Between(270, this.level.width - 270);
       }
     }
   }

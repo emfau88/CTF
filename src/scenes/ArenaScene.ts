@@ -132,7 +132,7 @@ export class ArenaScene extends Phaser.Scene {
         yoyo: true,
       });
     }
-    this.libraryEffects = new LibraryEffects(this);
+    this.libraryEffects = new LibraryEffects(this, this.level);
     renderArena(this, this.level, (x, y) => this.libraryEffects.addCandles(x, y));
     if (this.level.theme === "library") this.libraryEffects.createAtmosphere();
     this.audio = new ArenaAudio(this);
@@ -164,7 +164,7 @@ export class ArenaScene extends Phaser.Scene {
     if (this.menuOpen) this.openMainMenu();
     else this.hud.hideMainMenu();
 
-    this.cameras.main.setBounds(0, 0, T.worldWidth, T.worldHeight);
+    this.cameras.main.setBounds(0, 0, this.level.width, this.level.height);
     this.cameras.main.startFollow(this.playerBody, true, .12, .12);
   }
 
