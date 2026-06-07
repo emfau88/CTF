@@ -148,11 +148,11 @@ function drawRuinsBase(
 
 function ensureRuinsAnimations(scene: Phaser.Scene) {
   for (const team of ["Red", "Blue"] as const) {
-    const key = `ruins-banner-${team.toLowerCase()}-flutter`;
+    const key = `ruins-banner-cloth-${team.toLowerCase()}-flutter-v2`;
     if (scene.anims.exists(key)) continue;
     scene.anims.create({
       key,
-      frames: scene.anims.generateFrameNumbers(`ruinsBanner${team}`, { start: 0, end: 3 }),
+      frames: scene.anims.generateFrameNumbers(`ruinsBannerCloth${team}V2`, { start: 0, end: 3 }),
       frameRate: 2.4,
       repeat: -1,
       yoyo: true,
@@ -178,10 +178,13 @@ function drawRuinsDecoration(scene: Phaser.Scene, decoration: LevelDecoration) {
   }
   if (decoration.kind === "ruins-banner-red" || decoration.kind === "ruins-banner-blue") {
     const red = decoration.kind === "ruins-banner-red";
-    scene.add.sprite(x, y, red ? "ruinsBannerRed" : "ruinsBannerBlue")
+    scene.add.image(x, y, "ruinsBannerStandV2")
       .setDisplaySize(decoration.w, decoration.h)
-      .setDepth(2)
-      .play(`ruins-banner-${red ? "red" : "blue"}-flutter`);
+      .setDepth(2);
+    scene.add.sprite(x, y, red ? "ruinsBannerClothRedV2" : "ruinsBannerClothBlueV2")
+      .setDisplaySize(decoration.w, decoration.h)
+      .setDepth(3)
+      .play(`ruins-banner-cloth-${red ? "red" : "blue"}-flutter-v2`);
   }
 }
 

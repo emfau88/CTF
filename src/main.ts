@@ -1,5 +1,4 @@
 import Phaser from "phaser";
-import "./styles.css";
 import { ArenaScene } from "./scenes/ArenaScene";
 
 new Phaser.Game({

@@ -32,7 +32,12 @@ export function preloadArenaAssets(scene: Phaser.Scene) {
   scene.load.image("railImpact", assetUrl("rail-impact.png"));
   scene.load.image("flagRed", assetUrl("flag-red.png"));
   scene.load.image("flagBlue", assetUrl("flag-blue.png"));
-  scene.load.image("spawnPad", assetUrl("spawn-pad.png"));
+  scene.load.image("spawnPadLegacy", assetUrl("spawn-pad.png"));
+  scene.load.image("spawnPadV2", assetUrl("spawn-pad-v2.png"));
+  scene.load.spritesheet("spawnPadGlowV2", assetUrl("spawn-pad-glow-v2.png"), {
+    frameWidth: 256,
+    frameHeight: 256,
+  });
   scene.load.spritesheet("arenaCharacters", assetUrl("arena-characters.png"), {
     frameWidth: 128,
     frameHeight: 128,
@@ -46,11 +51,20 @@ export function preloadArenaAssets(scene: Phaser.Scene) {
   scene.load.image("ruinsCombatCourt", assetUrl("ruins/combat-court.png"));
   scene.load.image("ruinsColumnBroken", assetUrl("ruins/column-broken.png"));
   scene.load.image("ruinsOvergrownRemains", assetUrl("ruins/overgrown-remains.png"));
-  scene.load.spritesheet("ruinsBannerRed", assetUrl("ruins/banner-red.png"), {
+  scene.load.spritesheet("ruinsBannerRedLegacy", assetUrl("ruins/banner-red.png"), {
     frameWidth: 192,
     frameHeight: 256,
   });
-  scene.load.spritesheet("ruinsBannerBlue", assetUrl("ruins/banner-blue.png"), {
+  scene.load.spritesheet("ruinsBannerBlueLegacy", assetUrl("ruins/banner-blue.png"), {
+    frameWidth: 192,
+    frameHeight: 256,
+  });
+  scene.load.image("ruinsBannerStandV2", assetUrl("ruins/banner-stand-v2.png"));
+  scene.load.spritesheet("ruinsBannerClothRedV2", assetUrl("ruins/banner-cloth-red-v2.png"), {
+    frameWidth: 192,
+    frameHeight: 256,
+  });
+  scene.load.spritesheet("ruinsBannerClothBlueV2", assetUrl("ruins/banner-cloth-blue-v2.png"), {
     frameWidth: 192,
     frameHeight: 256,
   });

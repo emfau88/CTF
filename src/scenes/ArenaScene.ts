@@ -41,10 +41,10 @@ export class ArenaScene extends Phaser.Scene {
   pickups!: PickupSystem;
   auto!: AutoAttack;
   botAutos = new Map<Bot, AutoAttack>();
-  cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  wasd!: Record<string, Phaser.Input.Keyboard.Key>;
-  jumpKey!: Phaser.Input.Keyboard.Key;
-  whipKey!: Phaser.Input.Keyboard.Key;
+  cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
+  wasd?: Record<string, Phaser.Input.Keyboard.Key>;
+  jumpKey?: Phaser.Input.Keyboard.Key;
+  whipKey?: Phaser.Input.Keyboard.Key;
   joy = { active: false, id: -1, ox: 110, oy: 500, x: 0, y: 0, len: 0, r: 62, knobR: 22 };
   jumpBtn = { id: -1, x: 0, y: 0, r: 52, held: false, pressed: false };
   rocketBtn = { id: -1, x: 0, y: 0, r: 43, held: false, aimX: 1, aimY: 0, drag: 0, dragged: false };
@@ -123,6 +123,15 @@ export class ArenaScene extends Phaser.Scene {
         yoyo: true,
       });
     }
+    if (!this.anims.exists("spawn-pad-glow-v2")) {
+      this.anims.create({
+        key: "spawn-pad-glow-v2",
+        frames: this.anims.generateFrameNumbers("spawnPadGlowV2", { start: 0, end: 3 }),
+        frameRate: 2.2,
+        repeat: -1,
+        yoyo: true,
+      });
+    }
     this.libraryEffects = new LibraryEffects(this);
     renderArena(this, this.level, (x, y) => this.libraryEffects.addCandles(x, y));
     if (this.level.theme === "library") this.libraryEffects.createAtmosphere();
@@ -138,12 +147,13 @@ export class ArenaScene extends Phaser.Scene {
       this.botViews.set(b, this.add.sprite(b.x, b.y, "arenaCharacters", row * 4 + 1).setScale(.42).setDepth(32));
     }
 
-    if (!this.input.keyboard) throw new Error("keyboard unavailable");
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.wasd = this.input.keyboard.addKeys({ up: "W", down: "S", left: "A", right: "D" }) as Record<string, Phaser.Input.Keyboard.Key>;
-    this.jumpKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    this.whipKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
-    this.input.keyboard.addCapture(["SPACE", "UP", "DOWN", "LEFT", "RIGHT", "W", "A", "S", "D", "F"]);
+    if (this.input.keyboard) {
+      this.cursors = this.input.keyboard.createCursorKeys();
+      this.wasd = this.input.keyboard.addKeys({ up: "W", down: "S", left: "A", right: "D" }) as Record<string, Phaser.Input.Keyboard.Key>;
+      this.jumpKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+      this.whipKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
+      this.input.keyboard.addCapture(["SPACE", "UP", "DOWN", "LEFT", "RIGHT", "W", "A", "S", "D", "F"]);
+    }
     this.input.addPointer(2);
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => this.pointerDown(p));
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => this.pointerMove(p));
@@ -198,12 +208,12 @@ export class ArenaScene extends Phaser.Scene {
     this.player.whipCooldown = Math.max(0, this.player.whipCooldown - ms);
     const input = this.inputVector();
     if (input.length > .05) this.player.lastMoveDir = { x: input.x, y: input.y };
-    if ((Phaser.Input.Keyboard.JustDown(this.jumpKey) || this.jumpBtn.pressed) && this.player.jump.start()) {
+    if ((this.keyJustDown(this.jumpKey) || this.jumpBtn.pressed) && this.player.jump.start()) {
       this.audio.playJump();
     }
     this.jumpBtn.pressed = false;
-    if (Phaser.Input.Keyboard.JustDown(this.whipKey)) this.firePlayerWhipAtNearest();
-    if (!this.jumpKey.isDown && !this.jumpBtn.held) this.player.jump.release();
+    if (this.keyJustDown(this.whipKey)) this.firePlayerWhipAtNearest();
+    if (!this.jumpKey?.isDown && !this.jumpBtn.held) this.player.jump.release();
 
     this.player.prevX = this.player.x; this.player.prevY = this.player.y;
     if (this.player.state === "alive") {
@@ -275,14 +285,18 @@ export class ArenaScene extends Phaser.Scene {
 
   inputVector(): InputVector {
     let x = this.joy.x, y = this.joy.y, l = this.joy.len;
-    if (this.cursors.left.isDown || this.wasd.left.isDown) x = -1;
-    if (this.cursors.right.isDown || this.wasd.right.isDown) x = 1;
-    if (this.cursors.up.isDown || this.wasd.up.isDown) y = -1;
-    if (this.cursors.down.isDown || this.wasd.down.isDown) y = 1;
+    if (this.cursors?.left.isDown || this.wasd?.left.isDown) x = -1;
+    if (this.cursors?.right.isDown || this.wasd?.right.isDown) x = 1;
+    if (this.cursors?.up.isDown || this.wasd?.up.isDown) y = -1;
+    if (this.cursors?.down.isDown || this.wasd?.down.isDown) y = 1;
     const d = Math.hypot(x, y);
     if (d > 1) { x /= d; y /= d; }
     if (d > 0 && l === 0) l = 1;
     return { x, y, length: Math.min(1, Math.max(l, d > 0 ? 1 : 0)) };
+  }
+
+  keyJustDown(key?: Phaser.Input.Keyboard.Key) {
+    return key ? Phaser.Input.Keyboard.JustDown(key) : false;
   }
 
   teamCount(value: number | undefined, fallback: number) {
@@ -428,9 +442,11 @@ export class ArenaScene extends Phaser.Scene {
       view?.setVisible(true);
       const age = this.time.now * .001 + pickup.x * .011 + pickup.y * .007;
       const pad = view?.getByName("pad") as Phaser.GameObjects.Image | undefined;
+      const padGlow = view?.getByName("pad-glow") as Phaser.GameObjects.Sprite | undefined;
       const icon = view?.getByName("icon") as Phaser.GameObjects.Image | undefined;
       const label = view?.getByName("amount") as Phaser.GameObjects.Text | undefined;
-      pad?.setRotation(0).setScale(.27).setAlpha((pickup.temporary ? .38 : .82) + Math.sin(age * 2.4) * .05);
+      pad?.setRotation(0).setScale(.27).setAlpha(pickup.temporary ? .38 : .9);
+      padGlow?.setVisible(pickup.active).setRotation(0).setScale(.27).setAlpha(.72);
       icon?.setVisible(pickup.active).setScale(this.pickupIconScale(pickup) + Math.sin(age * 3.2) * .008).setAlpha(pickup.active ? 1 : .2);
       label?.setVisible(pickup.active && pickup.temporary);
     }
@@ -467,7 +483,13 @@ export class ArenaScene extends Phaser.Scene {
     const weapon = pickup.kind === "rocket" || pickup.kind === "rail" || pickup.kind === "whip";
     const icon = this.add.image(0, weapon ? -3 : -5, iconKey).setName("icon").setScale(this.pickupIconScale(pickup)).setDepth(1);
     if (!pickup.temporary) {
-      container.add(this.add.image(0, 2, "spawnPad").setName("pad").setScale(.27).setAlpha(.82).setDepth(0));
+      container.add(this.add.image(0, 2, "spawnPadV2").setName("pad").setScale(.27).setAlpha(.9).setDepth(0));
+      container.add(this.add.sprite(0, 2, "spawnPadGlowV2")
+        .setName("pad-glow")
+        .setScale(.27)
+        .setAlpha(.72)
+        .setDepth(.5)
+        .play("spawn-pad-glow-v2"));
     }
     container.add(icon);
     if (pickup.temporary) {
