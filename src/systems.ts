@@ -190,9 +190,17 @@ export class FlagSystem {
   flags: Record<TeamId, { team: TeamId; home: Vec2; x: number; y: number; carrier: FlagCarrier | null }>;
 
   constructor(private level: LevelData) {
+    const redHome = {
+      x: level.redBase.x + level.redBase.w / 2,
+      y: level.redBase.y + level.redBase.h / 2,
+    };
+    const blueHome = {
+      x: level.blueBase.x + level.blueBase.w / 2,
+      y: level.blueBase.y + level.blueBase.h / 2,
+    };
     this.flags = {
-      red: { team: "red", home: level.redFlag, x: level.redFlag.x, y: level.redFlag.y, carrier: null },
-      blue: { team: "blue", home: level.blueFlag, x: level.blueFlag.x, y: level.blueFlag.y, carrier: null },
+      red: { team: "red", home: redHome, x: redHome.x, y: redHome.y, carrier: null },
+      blue: { team: "blue", home: blueHome, x: blueHome.x, y: blueHome.y, carrier: null },
     };
   }
 
@@ -233,6 +241,8 @@ export class FlagSystem {
 export class Bot {
   radius = 15; vx = 0; vy = 0; hp = T.botMaxHp; armor = 0; rocketAmmo = 0; railAmmo = 0; railCooldown = 0; alive = true; respawnTimer = 0; carriedFlag: TeamId | null = null;
   state = "spawn";
+  decisionHoldRemaining = 0;
+  stuckRecoveries = 0;
   private routeIndex = 0;
   private path: Vec2[] = [];
   private pathIndex = 0;
@@ -243,6 +253,8 @@ export class Bot {
   private forceRepath = false;
   private avoidanceTimer = 0;
   private avoidanceSign = 1;
+  private heldState = "spawn";
+  private heldTarget: Vec2;
   private navigator: BotNavigator;
   constructor(
     public x: number,
@@ -254,19 +266,21 @@ export class Bot {
   ) {
     this.navigator = new BotNavigator(level, this.radius);
     this.progressPoint = { x, y };
+    this.heldTarget = { ...this.spawn };
   }
   update(dt: number, ms: number, blockers: Rect[], flags: FlagSystem, actors: Actor[], walls: Rect[], pickups: Pickup[]) {
     if (!this.alive) {
       this.respawnTimer -= ms;
       if (this.respawnTimer <= 0) {
-        this.x = this.spawn.x; this.y = this.spawn.y; this.hp = T.botMaxHp; this.armor = 0; this.rocketAmmo = 0; this.railAmmo = 0; this.railCooldown = 0; this.alive = true; this.routeIndex = 0; this.path = []; this.pathIndex = 0; this.pathTarget = null; this.pathTimer = 0; this.progressTimer = 0; this.progressPoint = { ...this.spawn }; this.forceRepath = false; this.avoidanceTimer = 0; this.state = "spawn";
+        this.x = this.spawn.x; this.y = this.spawn.y; this.hp = T.botMaxHp; this.armor = 0; this.rocketAmmo = 0; this.railAmmo = 0; this.railCooldown = 0; this.alive = true; this.routeIndex = 0; this.path = []; this.pathIndex = 0; this.pathTarget = null; this.pathTimer = 0; this.progressTimer = 0; this.progressPoint = { ...this.spawn }; this.forceRepath = false; this.avoidanceTimer = 0; this.state = "spawn"; this.heldState = "spawn"; this.heldTarget = { ...this.spawn }; this.decisionHoldRemaining = 0; this.stuckRecoveries = 0;
       }
       return;
     }
     this.railCooldown = Math.max(0, this.railCooldown - ms);
     this.avoidanceTimer = Math.max(0, this.avoidanceTimer - ms);
+    this.decisionHoldRemaining = Math.max(0, this.decisionHoldRemaining - ms);
 
-    const target = this.chooseTarget(flags, actors, walls, pickups);
+    const target = this.stabilizeDecision(this.chooseTarget(flags, actors, walls, pickups));
     this.pathTimer -= ms;
     this.moveToward(this.pathStep(target, blockers), dt, blockers);
     this.trackProgress(ms);
@@ -352,6 +366,29 @@ export class Bot {
   }
   private actorAlive(actor: Actor) {
     return actor instanceof Bot ? actor.alive : actor.state === "alive";
+  }
+  private stabilizeDecision(proposedTarget: Vec2) {
+    const proposedState = this.state;
+    const urgent = proposedState === "returnFlag" ||
+      proposedState === "recover" ||
+      proposedState === "retreat" ||
+      proposedState === "huntCarrier" ||
+      proposedState === "intercept";
+    const reachedHeldTarget = len(this.x - this.heldTarget.x, this.y - this.heldTarget.y) < 28;
+
+    if (proposedState === this.heldState) {
+      this.heldTarget = { ...proposedTarget };
+      return proposedTarget;
+    }
+    if (!urgent && this.decisionHoldRemaining > 0 && !reachedHeldTarget) {
+      this.state = this.heldState;
+      return this.heldTarget;
+    }
+
+    this.heldState = proposedState;
+    this.heldTarget = { ...proposedTarget };
+    this.decisionHoldRemaining = urgent ? 500 : 1400;
+    return proposedTarget;
   }
   private canSee(actor: Actor, walls: Rect[]) {
     return !walls.some((wall) => lineIntersectsRect(this, actor, wall));
@@ -483,6 +520,7 @@ export class Bot {
       this.avoidanceSign *= -1;
       this.avoidanceTimer = 520;
       this.routeIndex++;
+      this.stuckRecoveries++;
     }
     this.progressPoint = { x: this.x, y: this.y };
     this.progressTimer = 0;

@@ -44,6 +44,16 @@ export function preloadArenaAssets(scene: Phaser.Scene) {
   scene.load.image("ruinsBaseRed", assetUrl("ruins/base-red.png"));
   scene.load.image("ruinsBaseBlue", assetUrl("ruins/base-blue.png"));
   scene.load.image("ruinsCombatCourt", assetUrl("ruins/combat-court.png"));
+  scene.load.image("ruinsColumnBroken", assetUrl("ruins/column-broken.png"));
+  scene.load.image("ruinsOvergrownRemains", assetUrl("ruins/overgrown-remains.png"));
+  scene.load.spritesheet("ruinsBannerRed", assetUrl("ruins/banner-red.png"), {
+    frameWidth: 192,
+    frameHeight: 256,
+  });
+  scene.load.spritesheet("ruinsBannerBlue", assetUrl("ruins/banner-blue.png"), {
+    frameWidth: 192,
+    frameHeight: 256,
+  });
   scene.load.image("libraryFloorStone", assetUrl("library/floor-stone.png"));
   scene.load.image("libraryFloorWood", assetUrl("library/floor-wood.png"));
   scene.load.image("libraryFloorCarpet", assetUrl("library/floor-carpet.png"));

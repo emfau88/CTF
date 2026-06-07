@@ -493,11 +493,11 @@ export class ArenaScene extends Phaser.Scene {
     for (const f of Object.values(this.flags.flags)) {
       const key = f.team;
       if (!this.flagViews.has(key)) {
-        this.flagViews.set(key, this.add.image(f.x, f.y - 16, f.team === "red" ? "flagRed" : "flagBlue").setDepth(34).setScale(.28));
+        this.flagViews.set(key, this.add.image(f.x, f.y - 18, f.team === "red" ? "flagRed" : "flagBlue").setDepth(34).setScale(.25));
       }
       this.flagViews.get(key)
-        ?.setPosition(f.x + 10, f.y - 18)
-        .setScale(.25 + Math.sin(this.time.now * .006) * .01)
+        ?.setPosition(f.x, f.y - 18)
+        .setScale(.25)
         .setAlpha(f.carrier ? .94 : 1);
     }
   }

@@ -5,7 +5,16 @@ export type PickupSpawn = { kind: PickupKind; x: number; y: number };
 export type LevelTheme = "ruins" | "library" | "sports";
 export type WallVisual = "stone-wall" | "bookshelf" | "bookshelf-damaged" | "reading-table" | "sports-barrier";
 export type GapVisual = "chasm" | "collapsed-floor" | "maintenance-pit";
-export type DecorationKind = "rug" | "book-pile" | "reading-lamp" | "cobweb-spider" | "field-marking";
+export type DecorationKind =
+  | "rug"
+  | "book-pile"
+  | "reading-lamp"
+  | "cobweb-spider"
+  | "field-marking"
+  | "ruins-column"
+  | "ruins-overgrowth"
+  | "ruins-banner-red"
+  | "ruins-banner-blue";
 export type LevelWall = Rect & { visual?: WallVisual };
 export type LevelGap = Rect & { visual?: GapVisual };
 export type LevelDecoration = Rect & { kind: DecorationKind };
@@ -25,8 +34,6 @@ export type LevelData = {
   blueSpawn: { x: number; y: number };
   redBase: Rect;
   blueBase: Rect;
-  redFlag: { x: number; y: number };
-  blueFlag: { x: number; y: number };
   walls: LevelWall[];
   gaps: LevelGap[];
   decorations?: LevelDecoration[];
@@ -47,8 +54,6 @@ const trainingCrossing: LevelData = {
   blueSpawn: { x: 1350, y: 410 },
   redBase: { x: 70, y: 280, w: 190, h: 260 },
   blueBase: { x: 1240, y: 280, w: 190, h: 260 },
-  redFlag: { x: 150, y: 410 },
-  blueFlag: { x: 1350, y: 410 },
   walls: [
     { x: 320, y: 112, w: 60, h: 194 }, { x: 320, y: 514, w: 60, h: 194 },
     { x: 1120, y: 112, w: 60, h: 194 }, { x: 1120, y: 514, w: 60, h: 194 },
@@ -59,6 +64,16 @@ const trainingCrossing: LevelData = {
   gaps: [
     { x: 548, y: 214, w: 128, h: 72 }, { x: 824, y: 534, w: 128, h: 72 },
   ] satisfies Rect[],
+  decorations: [
+    { kind: "ruins-banner-red", x: 0, y: 358, w: 64, h: 104 },
+    { kind: "ruins-banner-blue", x: 1436, y: 358, w: 64, h: 104 },
+    { kind: "ruins-column", x: 8, y: 8, w: 112, h: 112 },
+    { kind: "ruins-column", x: 1380, y: 700, w: 112, h: 112 },
+    { kind: "ruins-overgrowth", x: 390, y: 0, w: 176, h: 74 },
+    { kind: "ruins-overgrowth", x: 934, y: 746, w: 176, h: 74 },
+    { kind: "ruins-overgrowth", x: 390, y: 746, w: 176, h: 74 },
+    { kind: "ruins-overgrowth", x: 934, y: 0, w: 176, h: 74 },
+  ],
   combatZone: { x: 600, y: 288, w: 300, h: 244 },
   pickups: [
     { kind: "health", x: 120, y: 320 }, { kind: "armor", x: 220, y: 320 }, { kind: "rocket", x: 130, y: 500 }, { kind: "rail", x: 215, y: 500 },
@@ -81,8 +96,6 @@ const midlineRush: LevelData = {
   blueSpawn: { x: 1355, y: 410 },
   redBase: { x: 65, y: 285, w: 195, h: 250 },
   blueBase: { x: 1240, y: 285, w: 195, h: 250 },
-  redFlag: { x: 150, y: 410 },
-  blueFlag: { x: 1350, y: 410 },
   walls: [
     { x: 330, y: 92, w: 58, h: 188, visual: "bookshelf" },
     { x: 330, y: 540, w: 58, h: 188, visual: "bookshelf" },
@@ -129,8 +142,6 @@ const flankSwitch: LevelData = {
   blueSpawn: { x: 1350, y: 410 },
   redBase: { x: 75, y: 275, w: 190, h: 270 },
   blueBase: { x: 1235, y: 275, w: 190, h: 270 },
-  redFlag: { x: 150, y: 410 },
-  blueFlag: { x: 1350, y: 410 },
   walls: [
     { x: 330, y: 150, w: 210, h: 36 }, { x: 330, y: 634, w: 210, h: 36 },
     { x: 960, y: 150, w: 210, h: 36 }, { x: 960, y: 634, w: 210, h: 36 },

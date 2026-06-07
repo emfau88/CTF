@@ -99,7 +99,7 @@ export class HudController {
   private redScoreValue = 0;
   private blueScoreValue = 0;
 
-  constructor(private debugVisible = window.innerWidth > 620) {}
+  constructor(private debugVisible = false) {}
 
   reset() {
     this.noticeUntil = 0;
@@ -278,7 +278,7 @@ armor: ${Math.ceil(player.armor)}
 weapon: rocket ${player.rocketAmmo}, rail ${player.railAmmo}, whip ${player.whipAmmo}, rail cd ${Math.ceil(player.railCooldown)}
 projectiles: ${projectiles.length}
 teams: ${redCount}v${blueCount}
-bot hp: ${bots.map((bot) => `${bot.team}-${bot.role}-${bot.state}:${Math.max(0, Math.ceil(bot.hp))}`).join(", ")}
+bot hp: ${bots.map((bot) => `${bot.team}-${bot.role}-${bot.state}:${Math.max(0, Math.ceil(bot.hp))} hold=${Math.ceil(bot.decisionHoldRemaining)} stuck=${bot.stuckRecoveries}`).join(", ")}
 nearest enemy: ${nearestEnemy.toFixed(0)}
 over gap: ${player.overGap ? "yes" : "no"}
 last safe: ${player.lastSafe.x.toFixed(0)}, ${player.lastSafe.y.toFixed(0)}`;

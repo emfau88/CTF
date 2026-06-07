@@ -31,8 +31,11 @@ export function renderArena(
         .setDisplaySize(r.w, r.h)
         .setDepth(-1.7);
     }
-    drawRuinsBase(scene, level.redBase, "ruinsBaseRed");
-    drawRuinsBase(scene, level.blueBase, "ruinsBaseBlue");
+  }
+  if (level.theme === "ruins" || level.theme === "library") {
+    const baseDepth = level.theme === "library" ? .5 : -1;
+    drawRuinsBase(scene, level.redBase, "ruinsBaseRed", baseDepth);
+    drawRuinsBase(scene, level.blueBase, "ruinsBaseBlue", baseDepth);
   } else {
     drawObjectSprite(scene, level.redBase, visuals.redBase, .92);
     drawObjectSprite(scene, level.blueBase, visuals.blueBase, .92);
@@ -42,6 +45,8 @@ export function renderArena(
     for (const gap of level.gaps) drawLibraryGap(scene, g, gap);
     for (const wall of level.walls) drawLibraryWall(scene, g, wall, onLibraryTable);
   } else if (level.theme === "ruins") {
+    ensureRuinsAnimations(scene);
+    for (const decoration of level.decorations ?? []) drawRuinsDecoration(scene, decoration);
     for (const gap of level.gaps) drawRuinsGap(scene, gap);
     for (const wall of level.walls) drawRuinsWall(scene, g, wall);
   } else {
@@ -130,10 +135,54 @@ function drawRuinsGap(scene: Phaser.Scene, gap: LevelGap) {
     .setDepth(1);
 }
 
-function drawRuinsBase(scene: Phaser.Scene, base: Rect, key: "ruinsBaseRed" | "ruinsBaseBlue") {
+function drawRuinsBase(
+  scene: Phaser.Scene,
+  base: Rect,
+  key: "ruinsBaseRed" | "ruinsBaseBlue",
+  depth: number,
+) {
   scene.add.image(base.x + base.w / 2, base.y + base.h / 2, key)
     .setDisplaySize(base.w + 8, base.h + 8)
-    .setDepth(-1);
+    .setDepth(depth);
+}
+
+function ensureRuinsAnimations(scene: Phaser.Scene) {
+  for (const team of ["Red", "Blue"] as const) {
+    const key = `ruins-banner-${team.toLowerCase()}-flutter`;
+    if (scene.anims.exists(key)) continue;
+    scene.anims.create({
+      key,
+      frames: scene.anims.generateFrameNumbers(`ruinsBanner${team}`, { start: 0, end: 3 }),
+      frameRate: 2.4,
+      repeat: -1,
+      yoyo: true,
+    });
+  }
+}
+
+function drawRuinsDecoration(scene: Phaser.Scene, decoration: LevelDecoration) {
+  const x = decoration.x + decoration.w / 2;
+  const y = decoration.y + decoration.h / 2;
+
+  if (decoration.kind === "ruins-column") {
+    scene.add.image(x, y, "ruinsColumnBroken")
+      .setDisplaySize(decoration.w, decoration.h)
+      .setDepth(1);
+    return;
+  }
+  if (decoration.kind === "ruins-overgrowth") {
+    scene.add.image(x, y, "ruinsOvergrownRemains")
+      .setDisplaySize(decoration.w, decoration.h)
+      .setDepth(1);
+    return;
+  }
+  if (decoration.kind === "ruins-banner-red" || decoration.kind === "ruins-banner-blue") {
+    const red = decoration.kind === "ruins-banner-red";
+    scene.add.sprite(x, y, red ? "ruinsBannerRed" : "ruinsBannerBlue")
+      .setDisplaySize(decoration.w, decoration.h)
+      .setDepth(2)
+      .play(`ruins-banner-${red ? "red" : "blue"}-flutter`);
+  }
 }
 
 function drawLibraryWall(
