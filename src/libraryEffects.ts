@@ -82,7 +82,7 @@ export class LibraryEffects {
     }));
     const spiderRoutes = [
       { x: 420, y: 142, dx: 42, dy: 8, flip: false },
-      { x: 1080, y: 684, dx: -38, dy: -6, flip: true },
+      { x: this.level.width - 420, y: 684, dx: -38, dy: -6, flip: true },
     ];
     for (const [index, route] of spiderRoutes.entries()) {
       const spider = this.scene.add.image(route.x, route.y, "librarySpider")

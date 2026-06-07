@@ -153,12 +153,13 @@ Eine symmetrische Ruinenarena und die übersichtlichste Einstiegskarte.
 
 ### 2. Grand Archive
 
-Eine schnellere Bibliotheksarena mit breiten Laufwegen.
+Eine breite Bibliotheksarena mit langen Galerien und einem offenen Lesesaal im Zentrum.
 
 - Bücherregale und beschädigte Regale als Hindernisse
-- Runde Lesetische
+- Drei gut lesbare Routen und mehrere Querverbindungen
+- Vier runde Lesetische im zentralen Saal
 - Teppiche, Bücherstapel und Spinnweben
-- Einstürze als überspringbare Abgründe
+- Vier kleine Einstürze als überspringbare Abkürzungen
 - Animierte Kerzen, Staub und eine laufende Spinne
 - Kerzen können durch Railgun- und Projektiltreffer gelöscht werden
 - Verwendet dieselben hochwertigen Teambasen wie Training Crossing
